@@ -18,7 +18,7 @@ namespace MikaUISystem
         {
         }
 
-        public void OnUICreated<T>(string name, UILifeToken<T> token, Transform container, IUI parentUI, SlotRectConfigs slotRectConfigs, MonoBehaviour template) where T : MonoBehaviour, IUI
+        public void OnUICreated<T>(string name, UIControlToken<T> token, Transform container, IUI parentUI, SlotRectConfigs slotRectConfigs, MonoBehaviour template) where T : MonoBehaviour, IUI
         {
             var basename = string.IsNullOrEmpty(name) ? template.name : name;
             nameMap[(typeof(T), name)] = basename;
@@ -26,7 +26,7 @@ namespace MikaUISystem
         }
 
 
-        public void OnUIRecoveryed<T>(string name, UILifeToken<T> token) where T : MonoBehaviour, IUI
+        public void OnUIRecoveryed<T>(string name, UIControlToken<T> token) where T : MonoBehaviour, IUI
         {
             var basename = nameMap[(typeof(T), name)];
             token.UI.name = $"[Recovery] {basename}";

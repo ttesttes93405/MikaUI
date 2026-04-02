@@ -72,7 +72,7 @@ namespace MikaUISystem
         }
 
 
-        public MikaTask<UILifeToken<T>> Create<T>(ISlot<TContainer> slot, SlotRectConfigs slotRectConfigs = null, string name = "") where T : class, TUI, IUI
+        public MikaTask<UIControlToken<T>> Create<T>(ISlot<TContainer> slot, SlotRectConfigs slotRectConfigs = null, string name = "") where T : class, TUI, IUI
         {
             try
             {
@@ -85,7 +85,7 @@ namespace MikaUISystem
             }
         }
 
-        protected async MikaTask<UILifeToken<T>> InternalCreate<T>(string name, TContainer container, IUI parentUI, int? sortingOrder, SlotRectConfigs slotRectConfigs) where T : class, TUI, IUI
+        protected async MikaTask<UIControlToken<T>> InternalCreate<T>(string name, TContainer container, IUI parentUI, int? sortingOrder, SlotRectConfigs slotRectConfigs) where T : class, TUI, IUI
         {
             var uiElement = uiElementProvider.GetUIElement<T>(name);
 
@@ -104,7 +104,7 @@ namespace MikaUISystem
             T ui = uiIns as T;
 
             MountInfo mountInfo = null;
-            UILifeToken<T> token = null;
+            UIControlToken<T> token = null;
             token = new()
             {
                 ElementID = elementID,
@@ -211,7 +211,7 @@ namespace MikaUISystem
 
                 token.RecoveryStatus = UITokenStatus.AfterRecoverying;
 
-                OnUILifeTokenRecovery(token);
+                RecoveryUIControlToken(token);
 
                 DoRemoveMountLink(parentUI, mountInfo);
 
@@ -224,7 +224,7 @@ namespace MikaUISystem
 
                 token.RecoveryStatus = UITokenStatus.Recoveryed;
 
-                void OnUILifeTokenRecovery(UILifeToken<T> target)
+                void RecoveryUIControlToken(UIControlToken<T> target)
                 {
                     if (target.SortingOrder.HasValue)
                     {
@@ -238,19 +238,19 @@ namespace MikaUISystem
 
 
 
-        public MikaTask<VirtualUILifeToken<T>> CreateVirtual<T>(IVirtualSlot slot = null) where T : IVirtualUI, new()
+        public MikaTask<VirtualUIControlToken<T>> CreateVirtual<T>(IVirtualSlot slot = null) where T : IVirtualUI, new()
         {
             return __CreateVirtual<T>(slot?.ParentUI);
         }
 
-        async MikaTask<VirtualUILifeToken<T>> __CreateVirtual<T>(IUI parentUI) where T : IVirtualUI, new()
+        async MikaTask<VirtualUIControlToken<T>> __CreateVirtual<T>(IUI parentUI) where T : IVirtualUI, new()
         {
             var virtualUIElement = uiElementProvider.GetVirtualUIElement<T>();
             (var virtualUI, var onCreated, var elementId) = await virtualUIElement.Create();
 
             UITokenStatus recoveryStatus = UITokenStatus.None;
             MountInfo mountInfo = null;
-            VirtualUILifeToken<T> token = null;
+            VirtualUIControlToken<T> token = null;
             if (virtualUI is T ui)
             {
                 token = new()

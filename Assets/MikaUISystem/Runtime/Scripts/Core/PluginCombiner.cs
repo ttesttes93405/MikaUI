@@ -38,7 +38,7 @@ namespace MikaUISystem
             }
         }
 
-        public void OnUICreated<T>(string name, UILifeToken<T> token, TContainer container, IUI parentUI, SlotRectConfigs slotRectConfigs, TUI template) where T : IUI, TUI
+        public void OnUICreated<T>(string name, UIControlToken<T> token, TContainer container, IUI parentUI, SlotRectConfigs slotRectConfigs, TUI template) where T : IUI, TUI
         {
             foreach (var plugin in plugins)
             {
@@ -47,7 +47,7 @@ namespace MikaUISystem
             }
         }
 
-        public void OnUIWillRecovery<T>(string name, UILifeToken<T> token) where T : IUI, TUI
+        public void OnUIWillRecovery<T>(string name, UIControlToken<T> token) where T : IUI, TUI
         {
             foreach (var plugin in reversePlugins)
             {
@@ -56,7 +56,7 @@ namespace MikaUISystem
             }
         }
 
-        public void OnUIRecoveryed<T>(string name, UILifeToken<T> token) where T : IUI, TUI
+        public void OnUIRecoveryed<T>(string name, UIControlToken<T> token) where T : IUI, TUI
         {
             foreach (var plugin in reversePlugins)
             {
@@ -66,7 +66,7 @@ namespace MikaUISystem
         }
 
 
-        public void OnVirtualUICreated<T>(VirtualUILifeToken<T> token, IUI parentUI) where T : IVirtualUI, new()
+        public void OnVirtualUICreated<T>(VirtualUIControlToken<T> token, IUI parentUI) where T : IVirtualUI, new()
         {
             foreach (var plugin in plugins)
             {

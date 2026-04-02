@@ -18,12 +18,12 @@ namespace MikaUISystem
             this.manager = manager;
         }
 
-        public void OnUICreated<T>(string name, UILifeToken<T> token, TContiner container, IUI parentUI, SlotRectConfigs slotRectConfigs, TUI template) where T : TUI, IUI
+        public void OnUICreated<T>(string name, UIControlToken<T> token, TContiner container, IUI parentUI, SlotRectConfigs slotRectConfigs, TUI template) where T : TUI, IUI
         {
             InjectUIManager(token.UI, manager);
         }
 
-        public void OnVirtualUICreated<T>(VirtualUILifeToken<T> token, IUI parentUI) where T : IVirtualUI, new()
+        public void OnVirtualUICreated<T>(VirtualUIControlToken<T> token, IUI parentUI) where T : IVirtualUI, new()
         {
             InjectUIManager(token.UI, manager);
         }

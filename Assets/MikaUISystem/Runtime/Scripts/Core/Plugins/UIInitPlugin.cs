@@ -19,7 +19,7 @@ namespace MikaUISystem
         {
         }
 
-        public void OnUICreated<T>(string name, UILifeToken<T> token, TContiner container, IUI parentUI, SlotRectConfigs slotRectConfigs, TUI template) where T : TUI, IUI
+        public void OnUICreated<T>(string name, UIControlToken<T> token, TContiner container, IUI parentUI, SlotRectConfigs slotRectConfigs, TUI template) where T : TUI, IUI
         {
             var ui = token.UI;
             var id = token.ElementID;
@@ -30,7 +30,7 @@ namespace MikaUISystem
             }
         }
 
-        public void OnVirtualUICreated<T>(VirtualUILifeToken<T> token, IUI parentUI) where T : IVirtualUI, new()
+        public void OnVirtualUICreated<T>(VirtualUIControlToken<T> token, IUI parentUI) where T : IVirtualUI, new()
         {
             var ui = token.UI;
             var id = token.ElementID;

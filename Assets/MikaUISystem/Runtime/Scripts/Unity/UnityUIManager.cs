@@ -64,7 +64,7 @@ namespace MikaUISystem
 
         }
 
-        public async Task<UILifeToken<T>> Create<T>() where T : MonoBehaviour, IUI
+        public async Task<UIControlToken<T>> Create<T>() where T : MonoBehaviour, IUI
         {
             try
             {
@@ -77,7 +77,7 @@ namespace MikaUISystem
             }
         }
 
-        public async Task<UILifeToken<T>> Create<T>(int sortingOrder, string name = "") where T : MonoBehaviour, IUI
+        public async Task<UIControlToken<T>> Create<T>(int sortingOrder, string name = "") where T : MonoBehaviour, IUI
         {
             var canvas = canvasProvider.Requset(sortingOrder);
             try

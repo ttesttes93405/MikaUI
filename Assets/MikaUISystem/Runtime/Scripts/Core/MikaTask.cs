@@ -6,212 +6,118 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.CompilerServices;
-
-
-#if(MIKA_UNITASK_SUPPORT)
-using Cysharp.Threading.Tasks;
-#else
 using System.Threading.Tasks;
-#endif
-
 
 namespace MikaUISystem
 {
 
-    public readonly struct MikaAwaiter<T> : INotifyCompletion
+
+    public interface IMikaAwaiter<TAwaiter> : INotifyCompletion
     {
-#if(MIKA_UNITASK_SUPPORT)
-        private readonly UniTask<T>.Awaiter _uniTaskAwaiter;
-#else
+        public TAwaiter TaskAwaiter { get; }
+        public bool IsCompleted { get; }
+    }
+
+    public readonly struct MikaAwaiter<T> : IMikaAwaiter<TaskAwaiter<T>>, INotifyCompletion
+    {
         private readonly TaskAwaiter<T> _taskAwaiter;
-#endif
+        public TaskAwaiter<T> TaskAwaiter => _taskAwaiter;
+        public bool IsCompleted => _taskAwaiter.IsCompleted;
 
-
-#if (MIKA_UNITASK_SUPPORT)
-        public FlexibleAwaiter(in UniTask<T> uniTask)
-        {
-            _uniTaskAwaiter = uniTask.GetAwaiter();
-        }
-#else
         public MikaAwaiter(in Task<T> task)
         {
             _taskAwaiter = task.GetAwaiter();
         }
-#endif
-
-        public bool IsCompleted
-        {
-            get
-            {
-                return
-#if (MIKA_UNITASK_SUPPORT)
-                    _uniTaskAwaiter.IsCompleted;
-#else
-                    _taskAwaiter.IsCompleted;
-#endif
-            }
-        }
 
         public void OnCompleted(Action continuation)
         {
-#if (MIKA_UNITASK_SUPPORT)
-            _uniTaskAwaiter.OnCompleted(continuation);
-#else
             _taskAwaiter.OnCompleted(continuation);
-#endif
         }
 
         public T GetResult()
         {
-            return
-#if (MIKA_UNITASK_SUPPORT)
-                _uniTaskAwaiter.GetResult();
-#else
-                _taskAwaiter.GetResult();
-#endif
+            return _taskAwaiter.GetResult();
         }
     }
 
-    public readonly struct MikaAwaiter : INotifyCompletion
+    public readonly struct MikaAwaiter : IMikaAwaiter<TaskAwaiter>, INotifyCompletion
     {
-#if(MIKA_UNITASK_SUPPORT)
-        private readonly UniTask.Awaiter _uniTaskAwaiter;
-#else
         private readonly TaskAwaiter _taskAwaiter;
-#endif
+        public TaskAwaiter TaskAwaiter => _taskAwaiter;
 
-
-#if (MIKA_UNITASK_SUPPORT)
-        public FlexibleAwaiter(in UniTask uniTask)
-        {
-            _uniTaskAwaiter = uniTask.GetAwaiter();
-        }
-#else
         public MikaAwaiter(in Task task)
         {
             _taskAwaiter = task.GetAwaiter();
         }
-#endif
 
-        public bool IsCompleted
-        {
-            get
-            {
-                return
-#if (MIKA_UNITASK_SUPPORT)
-                    _uniTaskAwaiter.IsCompleted;
-#else
-                    _taskAwaiter.IsCompleted;
-#endif
-            }
-        }
+        public bool IsCompleted => _taskAwaiter.IsCompleted;
 
         public void OnCompleted(Action continuation)
         {
-#if (MIKA_UNITASK_SUPPORT)
-            _uniTaskAwaiter.OnCompleted(continuation);
-#else
             _taskAwaiter.OnCompleted(continuation);
-#endif
         }
+
         public void GetResult() { }
     }
+
 
     [AsyncMethodBuilder(typeof(MikaTaskMethodBuilder<>))]
     public readonly struct MikaTask<T>
     {
-#if (MIKA_UNITASK_SUPPORT)
-        private readonly UniTask<T> _uniTask;
-#else
         private readonly Task<T> _task;
-#endif
 
-#if (MIKA_UNITASK_SUPPORT)
-        public MikaTask(UniTask<T> uniTask)
-        {
-            _uniTask = uniTask;
-        }
-#else
         public MikaTask(Task<T> task)
         {
             _task = task;
         }
-#endif
+
+        public MikaTask(Task task)
+        {
+            _task = task.ContinueWith(t => default(T));
+        }
 
         public MikaAwaiter<T> GetAwaiter()
         {
-            return
-#if (MIKA_UNITASK_SUPPORT)
-                new MikaAwaiter<T>(_uniTask);
-#else
-                new MikaAwaiter<T>(_task);
-#endif
+            return new MikaAwaiter<T>(_task);
         }
 
-
-        public static MikaTask<T> FromResult(T result)
+        public T WaitResult()
         {
-            return
-#if (MIKA_UNITASK_SUPPORT)
-                new MikaTask<T>(UniTask.FromResult(result));
-#else
-                new MikaTask<T>(Task.FromResult(result));
-#endif
+            if (_task.IsCompleted)
+                return _task.Result;
+
+            return _task.GetAwaiter().GetResult();
         }
+
+        public static MikaTask<T> FromResult(T result) => new MikaTask<T>(Task.FromResult(result));
+
+        public Task<T> ToTask() => _task;
 
     }
 
     [AsyncMethodBuilder(typeof(MikaTaskMethodBuilder))]
     public readonly struct MikaTask
     {
-#if (MIKA_UNITASK_SUPPORT)
-        private readonly UniTask _uniTask;
-#else
         private readonly Task _task;
-#endif
-#if (MIKA_UNITASK_SUPPORT)
-        public MikaTask(UniTask uniTask)
-        {
-            _uniTask = uniTask;
-        }
-#else
         public MikaTask(Task task)
         {
             _task = task;
         }
-#endif
-        public static MikaTask CompletedTask
-        {
-            get
-            {
-                return
-#if (MIKA_UNITASK_SUPPORT)
-                    new MikaTask(UniTask.CompletedTask);
-#else
-                    new MikaTask(Task.CompletedTask);
-#endif
-            }
-        }
+        public static MikaTask CompletedTask { get; } = new MikaTask(Task.CompletedTask);
 
         public MikaAwaiter GetAwaiter()
         {
-            return
-#if (MIKA_UNITASK_SUPPORT)
-                new MikaAwaiter(_uniTask);
-#else
-                new MikaAwaiter(_task);
-#endif
+            return new MikaAwaiter(_task);
         }
 
         public static MikaTask WhenAll(IEnumerable<MikaTask> tasks)
         {
-            return
-#if (MIKA_UNITASK_SUPPORT)
-                new MikaTask(UniTask.WhenAll(tasks.Select(t => t._uniTask)));
-#else
-                new MikaTask(Task.WhenAll(tasks.Select(t => t._task)));
-#endif
+            return new MikaTask(Task.WhenAll(tasks.Select(t => t._task)));
         }
+
+        public Task ToTask() => _task;
+
+
     }
 
     public struct MikaTaskMethodBuilder<T>

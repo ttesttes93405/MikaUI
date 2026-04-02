@@ -13,7 +13,7 @@ namespace MikaUISystem
         Recoveryed,
     }
 
-    public record UILifeToken : IAsyncDisposable, IDisposable
+    public record UIControlToken : IAsyncDisposable, IDisposable
     {
         public Guid ElementID { get; init; }
         public Guid TokenID { get; init; }
@@ -40,7 +40,7 @@ namespace MikaUISystem
 
     }
 
-    public sealed record UILifeToken<T> : UILifeToken where T : IUI
+    public sealed record UIControlToken<T> : UIControlToken where T : IUI
     {
         public T UI { get; init; }
         public void Deconstruct(out T UI, out Func<MikaTask> Recovery)
@@ -52,7 +52,7 @@ namespace MikaUISystem
 
 
 
-    public record VirtualUILifeToken : IAsyncDisposable, IDisposable
+    public record VirtualUIControlToken : IAsyncDisposable, IDisposable
     {
         public Guid ElementID { get; init; }
         public Guid TokenID { get; init; }
@@ -76,7 +76,7 @@ namespace MikaUISystem
 
     }
 
-    public sealed record VirtualUILifeToken<T> : VirtualUILifeToken, IDisposable where T : IVirtualUI
+    public sealed record VirtualUIControlToken<T> : VirtualUIControlToken, IDisposable where T : IVirtualUI
     {
         public T UI { get; init; }
         public void Deconstruct(out T UI, out Func<MikaTask> Recovery)
