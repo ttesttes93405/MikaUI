@@ -10,6 +10,11 @@ namespace MikaUISystem
         {
             Container = container;
         }
+
+        public override string ToString()
+        {
+            return $"{nameof(Slot)}({nameof(ParentUI)}: {ParentUI}, {nameof(Container)}: {(Container == null ? "null" : Container.name)})";
+        }
     }
 
 }

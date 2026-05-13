@@ -1,88 +1,98 @@
 
-
 using System;
 
 namespace MikaUISystem
 {
-    internal enum UITokenStatus
+    internal enum NodeStatus
     {
         None,
-        BeforeRecoverying,
+        Created,
         BeforeRecoveryed,
-        AfterRecoverying,
         Recoveryed,
     }
 
-    public record UIControlToken : IAsyncDisposable, IDisposable
+
+
+    public record UIControlToken : IDisposable
     {
-        public Guid ElementID { get; init; }
         public Guid TokenID { get; init; }
-        internal Func<MikaTask> BeforeRecovery { get; init; }
-
-        internal Func<MikaTask> AfterRecovery { get; init; }
-
-        public Func<MikaTask> Recovery { get; init; }
-
-        public int? SortingOrder { get; init; }
-
-        internal UITokenStatus RecoveryStatus { get; set; }
-
-        public async void Dispose()
-        {
-            await Recovery.Invoke();
-        }
-
-        public async System.Threading.Tasks.ValueTask DisposeAsync()
-        {
-            if (Recovery != null)
-                await Recovery.Invoke();
-        }
-
-    }
-
-    public sealed record UIControlToken<T> : UIControlToken where T : IUI
-    {
-        public T UI { get; init; }
-        public void Deconstruct(out T UI, out Func<MikaTask> Recovery)
-        {
-            UI = this.UI;
-            Recovery = this.Recovery;
-        }
-    }
-
-
-
-    public record VirtualUIControlToken : IAsyncDisposable, IDisposable
-    {
         public Guid ElementID { get; init; }
-        public Guid TokenID { get; init; }
-        internal Func<MikaTask> BeforeRecovery { get; init; }
+        public string Name { get; init; }
 
-        internal Func<MikaTask> AfterRecovery { get; init; }
+        public Action Recovery { get; init; }
+        [Obsolete("Use Recovery instead.")]
+        public Func<MikaTask> RecoveryAsync => () =>
+        {
+            Recovery?.Invoke();
+            return MikaTask.CompletedTask;
+        };
 
-        public Func<MikaTask> Recovery { get; init; }
+        public event Action OnDispose;
+
+        bool IsDisposed { get; set; }
 
         public void Dispose()
         {
+            if (IsDisposed)
+                throw new ObjectDisposedException($"Token {Name} ({TokenID}) has already been disposed.");
             Recovery?.Invoke();
+            OnDispose?.Invoke();
+            IsDisposed = true;
         }
 
-        public async System.Threading.Tasks.ValueTask DisposeAsync()
+    }
+
+    public sealed record UIControlToken<TUI, TContainer> : UIControlToken where TUI : IUI
+    {
+        public TUI UI { get; init; }
+
+        public void Deconstruct(out TUI UI, out Action Recovery)
         {
-            if (Recovery != null)
-                await Recovery.Invoke();
+            UI = this.UI;
+            Recovery = Dispose;
         }
+    }
 
 
+
+    public record VirtualUIControlToken : IDisposable
+    {
+        public Guid TokenID { get; init; }
+        public Guid ElementID { get; init; }
+        public string Name { get; init; }
+
+        internal Action Recovery { get; init; }
+
+        [Obsolete("Use Recovery instead.")]
+        public Func<MikaTask> RecoveryAsync => () =>
+        {
+            Recovery?.Invoke();
+            return MikaTask.CompletedTask;
+        };
+
+        public event Action OnDispose;
+
+        bool IsDisposed { get; set; }
+
+        public void Dispose()
+        {
+            if (IsDisposed)
+                throw new ObjectDisposedException($"Token {Name} ({TokenID}) has already been disposed.");
+
+            Recovery?.Invoke();
+            OnDispose?.Invoke();
+            IsDisposed = true;
+        }
     }
 
     public sealed record VirtualUIControlToken<T> : VirtualUIControlToken, IDisposable where T : IVirtualUI
     {
         public T UI { get; init; }
-        public void Deconstruct(out T UI, out Func<MikaTask> Recovery)
+
+        public void Deconstruct(out T UI, out Action Recovery)
         {
             UI = this.UI;
-            Recovery = this.Recovery;
+            Recovery = Dispose;
         }
     }
 

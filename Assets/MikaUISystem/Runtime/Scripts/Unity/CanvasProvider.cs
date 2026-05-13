@@ -7,8 +7,14 @@ namespace MikaUISystem
 
     public class CanvasProvider : ICanvasProvider
     {
+
         readonly Transform root;
         readonly Canvas canvasTemplate;
+        readonly Dictionary<int, Canvas> pool = new();
+        readonly Dictionary<int, HashSet<Guid>> canvasUsingRegistry = new();
+
+
+        public float DefaultScaleFactor => canvasTemplate.scaleFactor;
 
         internal CanvasProvider(RectTransform root, Canvas canvasTemplate)
         {
@@ -16,12 +22,6 @@ namespace MikaUISystem
             this.canvasTemplate = canvasTemplate;
         }
 
-        public float DefaultScaleFactor => canvasTemplate.scaleFactor;
-
-
-        readonly Dictionary<int, Canvas> pool = new();
-
-        readonly Dictionary<int, HashSet<Guid>> canvasUsingRegistry = new();
 
         internal Canvas Requset(int sortingOrder)
         {
@@ -66,7 +66,6 @@ namespace MikaUISystem
             }
         }
 
-
         public void Registry(Guid id, int sortingOrder)
         {
             if (canvasUsingRegistry.TryGetValue(sortingOrder, out var uis) == false)
@@ -94,9 +93,10 @@ namespace MikaUISystem
                 }
             }
 
-            void RecoverCanvas(Canvas canvas)
+            static void RecoverCanvas(Canvas canvas)
             {
                 canvas.enabled = false;
+                canvas.gameObject.SetActive(false);
             }
         }
 

@@ -1,4 +1,5 @@
 
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using MikaUISystem.Plugin;
@@ -8,8 +9,8 @@ namespace MikaUISystem
     internal class PluginCombiner<TUI, TContainer> :
         IPlugin<TUI, TContainer>,
         IPluginUICreatedHandler<TUI, TContainer>,
-        IPluginUIWillRecoveryHandler<TUI>,
-        IPluginUIRecoveryedHandler<TUI>,
+        IPluginUIWillRecoveryHandler<TUI, TContainer>,
+        IPluginUIRecoveryedHandler,
         IPluginVirtualUICreatedHandler
         where TUI : class where TContainer : class
     {
@@ -18,15 +19,16 @@ namespace MikaUISystem
         readonly IPlugin<TUI, TContainer>[] plugins;
         readonly IPlugin<TUI, TContainer>[] reversePlugins;
 
-        public int SortingOrder => throw new System.NotImplementedException();
+        public int SortingOrder => 0;
 
         public PluginCombiner(IEnumerable<IPlugin<TUI, TContainer>> plugins)
         {
-            this.plugins = plugins
+            var orderedPlugins = (plugins ?? Enumerable.Empty<IPlugin<TUI, TContainer>>())
                 .OrderBy(p => p.SortingOrder)
                 .ToArray();
-                
-            reversePlugins = plugins.Reverse().ToArray();
+
+            this.plugins = orderedPlugins;
+            reversePlugins = orderedPlugins.Reverse().ToArray();
         }
 
 
@@ -38,7 +40,7 @@ namespace MikaUISystem
             }
         }
 
-        public void OnUICreated<T>(string name, UIControlToken<T> token, TContainer container, IUI parentUI, SlotRectConfigs slotRectConfigs, TUI template) where T : IUI, TUI
+        public void OnUICreated<T>(string name, UIControlToken<T, TContainer> token, TContainer container, IUI parentUI, SlotRectConfigs slotRectConfigs, TUI template) where T : IUI, TUI
         {
             foreach (var plugin in plugins)
             {
@@ -47,21 +49,21 @@ namespace MikaUISystem
             }
         }
 
-        public void OnUIWillRecovery<T>(string name, UIControlToken<T> token) where T : IUI, TUI
+        public void OnUIWillRecovery<T>(string name, UIControlToken<T, TContainer> token) where T : IUI, TUI
         {
             foreach (var plugin in reversePlugins)
             {
-                if (plugin is IPluginUIWillRecoveryHandler<TUI> pluginUIWillRecoveryHandler)
+                if (plugin is IPluginUIWillRecoveryHandler<TUI, TContainer> pluginUIWillRecoveryHandler)
                     pluginUIWillRecoveryHandler.OnUIWillRecovery(name, token);
             }
         }
 
-        public void OnUIRecoveryed<T>(string name, UIControlToken<T> token) where T : IUI, TUI
+        public void OnUIRecoveryed(string name, Guid tokenID) 
         {
             foreach (var plugin in reversePlugins)
             {
-                if (plugin is IPluginUIRecoveryedHandler<TUI> pluginUIRecoveryedHandler)
-                    pluginUIRecoveryedHandler.OnUIRecoveryed(name, token);
+                if (plugin is IPluginUIRecoveryedHandler pluginUIRecoveryedHandler)
+                    pluginUIRecoveryedHandler.OnUIRecoveryed(name, tokenID);
             }
         }
 

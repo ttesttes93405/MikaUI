@@ -9,5 +9,12 @@ namespace MikaUISystem
         {
             ParentUI = parentUI;
         }
+
+
+        public override string ToString()
+        {
+            return $"{nameof(VirtualSlot)}({nameof(ParentUI)}: {ParentUI})";
+        }
+
     }
 }

@@ -112,8 +112,6 @@ namespace MikaUISystem
                         {
                             UnityEngine.Object.Destroy((ui as MonoBehaviour).gameObject);
                         }
-
-                        return MikaTask.CompletedTask;
                     }
                 };
             }
@@ -122,17 +120,15 @@ namespace MikaUISystem
 
         public VirtualUIElement GetVirtualUIElement<T>() where T : IVirtualUI, new()
         {
-            Dictionary<IVirtualUI, Guid> uiIDMap = new();
-
             return new()
             {
                 UIName = typeof(T).Name,
                 Create = () =>
                 {
                     var virtualUI = new T();
-                    var id = uiIDMap.GetValueOrDefault(virtualUI, Guid.NewGuid());
+                    var elementId = Guid.NewGuid();
 
-                    return MikaTask<(IVirtualUI ui, Action onCreated, Guid elementID)>.FromResult((virtualUI, OnCreated, id));
+                    return MikaTask<(IVirtualUI ui, Action onCreated, Guid elementID)>.FromResult((virtualUI, OnCreated, elementId));
                 },
                 Recovery = OnRecovery
             };

@@ -13,7 +13,7 @@ namespace MikaUISystem
         {
         }
 
-        public void OnUICreated<T>(string name, UIControlToken<T> token, Transform container, IUI parentUI, SlotRectConfigs slotRectConfigs, MonoBehaviour template) where T : MonoBehaviour, IUI
+        public void OnUICreated<T>(string name, UIControlToken<T, Transform> token, Transform container, IUI parentUI, SlotRectConfigs slotRectConfigs, MonoBehaviour template) where T : MonoBehaviour, IUI
         {
             RectTransform templateRectTrans = template.GetComponent<RectTransform>();
 

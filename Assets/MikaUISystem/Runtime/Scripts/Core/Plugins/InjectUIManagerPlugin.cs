@@ -3,22 +3,22 @@ using MikaUISystem.Plugin;
 
 namespace MikaUISystem
 {
-    public class InjectUIManagerPlugin<TUI, TContiner> :
-        IPlugin<TUI, TContiner>,
-        IPluginUICreatedHandler<TUI, TContiner>,
+    public class InjectUIManagerPlugin<TUI, TContainer> :
+        IPlugin<TUI, TContainer>,
+        IPluginUICreatedHandler<TUI, TContainer>,
         IPluginVirtualUICreatedHandler
-        where TUI : class where TContiner : class
+        where TUI : class where TContainer : class
     {
-        UIManager<TUI, TContiner> manager;
+        UIManager<TUI, TContainer> manager;
 
         public int SortingOrder => -1;
 
-        public void Install(UIManager<TUI, TContiner> manager)
+        public void Install(UIManager<TUI, TContainer> manager)
         {
             this.manager = manager;
         }
 
-        public void OnUICreated<T>(string name, UIControlToken<T> token, TContiner container, IUI parentUI, SlotRectConfigs slotRectConfigs, TUI template) where T : TUI, IUI
+        public void OnUICreated<T>(string name, UIControlToken<T, TContainer> token, TContainer container, IUI parentUI, SlotRectConfigs slotRectConfigs, TUI template) where T : TUI, IUI
         {
             InjectUIManager(token.UI, manager);
         }
@@ -28,7 +28,7 @@ namespace MikaUISystem
             InjectUIManager(token.UI, manager);
         }
 
-        static void InjectUIManager(object target, UIManager<TUI, TContiner> uiManager)
+        static void InjectUIManager(object target, UIManager<TUI, TContainer> uiManager)
         {
             var fields = target.GetType().GetFields(BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Instance);
 

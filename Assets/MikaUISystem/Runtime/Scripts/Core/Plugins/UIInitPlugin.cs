@@ -4,22 +4,22 @@ using MikaUISystem.Plugin;
 
 namespace MikaUISystem
 {
-    public class UIInitPlugin<TUI, TContiner> :
-        IPlugin<TUI, TContiner>,
-        IPluginUICreatedHandler<TUI, TContiner>,
+    public class UIInitPlugin<TUI, TContainer> :
+        IPlugin<TUI, TContainer>,
+        IPluginUICreatedHandler<TUI, TContainer>,
         IPluginVirtualUICreatedHandler
-        where TUI : class where TContiner : class
+        where TUI : class where TContainer : class
     {
 
         readonly HashSet<Guid> uiInitSet = new();
 
         public int SortingOrder => 0;
 
-        public void Install(UIManager<TUI, TContiner> manager)
+        public void Install(UIManager<TUI, TContainer> manager)
         {
         }
 
-        public void OnUICreated<T>(string name, UIControlToken<T> token, TContiner container, IUI parentUI, SlotRectConfigs slotRectConfigs, TUI template) where T : TUI, IUI
+        public void OnUICreated<T>(string name, UIControlToken<T, TContainer> token, TContainer container, IUI parentUI, SlotRectConfigs slotRectConfigs, TUI template) where T : TUI, IUI
         {
             var ui = token.UI;
             var id = token.ElementID;

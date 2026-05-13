@@ -34,37 +34,15 @@ namespace MikaUISystem
     {
         readonly IUIElementProvider<TUI, TContainer> uiElementProvider;
 
-        public ICanvasProvider CanvasProvider { get; private set; }
-
-
-        record MountInfo
-        {
-            public Guid TokenID { get; init; }
-            public IVirtualUI UI { get; init; }
-
-            public Action<UITokenStatus> OnChangeRecoveryStatus { get; init; }
-            public Func<MikaTask> AfterRecoverySelf { get; init; }
-            public Func<MikaTask> BeforeRecoverySelf { get; init; }
-            public Func<MikaTask> FullRecovery { get; init; }
-        }
-
-        record MountInfoRepo
-        {
-            public MountInfo MountInfo { get; set; }
-            public List<MountInfo> Children { get; init; }
-        }
-
-        readonly Dictionary<Guid, MountInfoRepo> mountLinkQuery = new();
-        readonly Dictionary<IUI, Guid> mountLinkQueryByUI = new();
-
+        readonly NodeManager nodeManager;
         readonly PluginCombiner<TUI, TContainer> combinedPlugin;
         readonly Logger logger;
-        public UIManager(IUIElementProvider<TUI, TContainer> uiElementProvider, ICanvasProvider canvasProvider, IEnumerable<IPlugin<TUI, TContainer>> plugins, Logger logger)
+        public UIManager(IUIElementProvider<TUI, TContainer> uiElementProvider, IEnumerable<IPlugin<TUI, TContainer>> plugins, Logger logger)
         {
             this.uiElementProvider = uiElementProvider;
-            CanvasProvider = canvasProvider;
             this.logger = logger;
 
+            nodeManager = new NodeManager(logger);
 
             combinedPlugin = new PluginCombiner<TUI, TContainer>(plugins);
 
@@ -72,11 +50,11 @@ namespace MikaUISystem
         }
 
 
-        public MikaTask<UIControlToken<T>> Create<T>(ISlot<TContainer> slot, SlotRectConfigs slotRectConfigs = null, string name = "") where T : class, TUI, IUI
+        public MikaTask<UIControlToken<T, TContainer>> Create<T>(ISlot<TContainer> slot, SlotRectConfigs slotRectConfigs = null, string name = "") where T : class, TUI, IUI
         {
             try
             {
-                return InternalCreate<T>(name, slot.Container, slot.ParentUI, null, slotRectConfigs);
+                return InternalCreate<T>(name, slot.Container, slot.ParentUI,  slotRectConfigs);
             }
             catch (Exception e)
             {
@@ -85,395 +63,193 @@ namespace MikaUISystem
             }
         }
 
-        protected async MikaTask<UIControlToken<T>> InternalCreate<T>(string name, TContainer container, IUI parentUI, int? sortingOrder, SlotRectConfigs slotRectConfigs) where T : class, TUI, IUI
+        async MikaTask<UIControlToken<T, TContainer>> InternalCreate<T>(string name, TContainer container, IUI parentUI, SlotRectConfigs slotRectConfigs) where T : class, TUI, IUI
         {
             var uiElement = uiElementProvider.GetUIElement<T>(name);
 
             if (uiElement == null)
             {
-                throw new Exception($"Cannot find UIElement: {typeof(T).Name}");
+                throw new NullReferenceException($"Cannot find UIElement: {typeof(T).Name}");
             }
 
             (var uiIns, var onCreated, var elementID) = await uiElement.Create(container);
 
-            if (uiIns is T == false)
+            if (uiIns is T ui == false)
             {
-                throw new Exception($"Cannot create UI {typeof(T).Name}");
+                throw new NullReferenceException($"Cannot create UI {typeof(T).Name}");
             }
 
-            T ui = uiIns as T;
-
-            MountInfo mountInfo = null;
-            UIControlToken<T> token = null;
+            Node node = null;
+            UIControlToken<T, TContainer> token = null;
             token = new()
             {
-                ElementID = elementID,
                 TokenID = Guid.NewGuid(),
+                ElementID = elementID,
                 UI = ui,
-                Recovery = UIFullTreeRecovery,
-                BeforeRecovery = UITreeBeforeRecovery,
-                AfterRecovery = UITreeAfterRecovery,
-                SortingOrder = sortingOrder,
-                RecoveryStatus = UITokenStatus.None,
+                Name = $"{typeof(T).Name}_{name}",
+                Recovery = () => UIFullTreeRecovery(node),
             };
 
-            mountLinkQueryByUI.Add(ui, token.TokenID);
-
-            mountInfo = new()
+            node = new Node(
+                token.TokenID,
+                token.Name
+            )
             {
-                TokenID = token.TokenID,
-                OnChangeRecoveryStatus = (status) => token.RecoveryStatus = status,
-                UI = ui,
-                AfterRecoverySelf = UIAfterRecoverySelf,
-                BeforeRecoverySelf = UIBeforeRecoverySelf,
-                FullRecovery = UIFullTreeRecovery,
+                BeforeRecoverySelf = () =>
+                {
+                    node.ChangeStatus(from: NodeStatus.Created, to: NodeStatus.BeforeRecoveryed);
+                    combinedPlugin.OnUIWillRecovery(token.Name, token);
+                },
+                AfterRecoverySelf = () =>
+                {
+                    nodeManager.DetachNode(node, ui);
+                    combinedPlugin.OnUIRecoveryed(token.Name, token.TokenID);
+                    uiElement.Recovery(ui);
+                },
             };
 
-            DoAddMountLink(parentUI, mountInfo);
+            nodeManager.AttachNode(parentUI, node, ui);
 
-            await UICreated();
+            UICreated(token);
 
             return token;
 
 
-            async MikaTask UICreated()
+            void UICreated(UIControlToken<T, TContainer> token)
             {
-
-                if (token.SortingOrder.HasValue)
-                {
-                    CanvasProvider.Registry(token.TokenID, token.SortingOrder.Value);
-                }
-
                 combinedPlugin.OnUICreated(name, token, container, parentUI, slotRectConfigs, uiElement.GetTemplate() as TUI);
-
                 onCreated?.Invoke();
-
-            }
-
-            async MikaTask UIFullTreeRecovery()
-            {
-                if (token.RecoveryStatus != UITokenStatus.None)
-                    return;
-
-                try
-                {
-                    await UITreeBeforeRecovery();
-                    await UITreeAfterRecovery();
-                }
-                catch (Exception e)
-                {
-                    logger?.LogError?.Invoke(e);
-                }
-            }
-
-            async MikaTask UITreeBeforeRecovery()
-            {
-                if (token.RecoveryStatus != UITokenStatus.None)
-                    return;
-
-                await TreeBeforeRecovery(token.TokenID, mountInfo.OnChangeRecoveryStatus);
-            }
-
-            async MikaTask UITreeAfterRecovery()
-            {
-                if (token.RecoveryStatus != UITokenStatus.BeforeRecoveryed)
-                    return;
-
-                await TreeAfterRecovery(token.TokenID);
-            }
-
-            async MikaTask UIBeforeRecoverySelf()
-            {
-                if (token.RecoveryStatus != UITokenStatus.None)
-                    return;
-
-
-                if (ui is IUIAsyncRecoverable uiAsyncRecoverable)
-                {
-                    token.RecoveryStatus = UITokenStatus.BeforeRecoverying;
-
-                    await uiAsyncRecoverable.OnRecovery();
-
-                    token.RecoveryStatus = UITokenStatus.BeforeRecoveryed;
-                    return;
-                }
-                else
-                {
-                    token.RecoveryStatus = UITokenStatus.BeforeRecoveryed;
-                    return;
-                }
-            }
-
-            async MikaTask UIAfterRecoverySelf()
-            {
-                if (token.RecoveryStatus != UITokenStatus.BeforeRecoveryed)
-                    return;
-
-                token.RecoveryStatus = UITokenStatus.AfterRecoverying;
-
-                RecoveryUIControlToken(token);
-
-                DoRemoveMountLink(parentUI, mountInfo);
-
-                combinedPlugin.OnUIWillRecovery(name, token);
-
-                mountLinkQueryByUI.Remove(ui);
-                await uiElement.Recovery(ui);
-
-                combinedPlugin.OnUIRecoveryed(name, token);
-
-                token.RecoveryStatus = UITokenStatus.Recoveryed;
-
-                void RecoveryUIControlToken(UIControlToken<T> target)
-                {
-                    if (target.SortingOrder.HasValue)
-                    {
-                        CanvasProvider.Unregistry(target.TokenID);
-                    }
-                }
             }
 
         }
-
-
-
 
         public MikaTask<VirtualUIControlToken<T>> CreateVirtual<T>(IVirtualSlot slot = null) where T : IVirtualUI, new()
         {
-            return __CreateVirtual<T>(slot?.ParentUI);
+            return InternalCreateVirtual<T>(slot?.ParentUI);
         }
 
-        async MikaTask<VirtualUIControlToken<T>> __CreateVirtual<T>(IUI parentUI) where T : IVirtualUI, new()
+        async MikaTask<VirtualUIControlToken<T>> InternalCreateVirtual<T>(IUI parentUI) where T : IVirtualUI, new()
         {
             var virtualUIElement = uiElementProvider.GetVirtualUIElement<T>();
             (var virtualUI, var onCreated, var elementId) = await virtualUIElement.Create();
 
-            UITokenStatus recoveryStatus = UITokenStatus.None;
-            MountInfo mountInfo = null;
+            if (virtualUI is T ui == false)
+            {
+                throw new Exception($"Cannot create UI {typeof(T).Name}");
+            }
             VirtualUIControlToken<T> token = null;
-            if (virtualUI is T ui)
+            Node node = null;
+            token = new()
             {
-                token = new()
-                {
-                    ElementID = elementId,
-                    TokenID = Guid.NewGuid(),
-                    UI = ui,
-                    BeforeRecovery = VirtaulUIBeforeRecoverySelf,
-                    AfterRecovery = VirtualUIAfterRecoverySelf,
-                    Recovery = VirtaulUIRecovery,
-                };
-
-                mountInfo = new()
-                {
-                    TokenID = token.TokenID,
-                    OnChangeRecoveryStatus = (status) => { },
-                    UI = ui,
-                    AfterRecoverySelf = token.AfterRecovery,
-                    BeforeRecoverySelf = token.BeforeRecovery
-                };
-
-                DoAddMountLink(parentUI, mountInfo);
-
-                await VirtualUICreated();
-
-                return token;
-            }
-
-            throw new Exception($"Cannot create UI {typeof(T).Name}");
-
-            async MikaTask VirtualUICreated()
-            {
-                onCreated?.Invoke();
-                combinedPlugin.OnVirtualUICreated(token, parentUI);
-            }
-
-            async MikaTask VirtaulUIRecovery()
-            {
-                if (recoveryStatus != UITokenStatus.None)
-                    return;
-
-                recoveryStatus = UITokenStatus.BeforeRecoverying;
-
-                try
-                {
-                    await VirtaulUIBeforeRecoverySelf();
-                    await VirtualUIAfterRecoverySelf();
-                }
-                catch (Exception e)
-                {
-                    logger?.LogError?.Invoke(e);
-                }
-
-                recoveryStatus = UITokenStatus.Recoveryed;
-
-            }
-
-
-            async MikaTask VirtaulUIBeforeRecoverySelf()
-            {
-                if (ui is IUIAsyncRecoverable uiAsyncRecoverable)
-                {
-                    await uiAsyncRecoverable.OnRecovery();
-                }
-            }
-
-            async MikaTask VirtualUIAfterRecoverySelf()
-            {
-                DoRemoveMountLink(parentUI, mountInfo);
-
-                if (virtualUI is IDisposable disposable)
-                {
-                    disposable.Dispose();
-                }
-            }
-
-
-        }
-
-
-
-
-        /// <summary>
-        /// Call all children UI's BeforeRecovery(Exit), include parentUI
-        /// </summary>
-        async MikaTask TreeBeforeRecovery(Guid tokenID, Action<UITokenStatus> onChangeRecoveryStatus)
-        {
-            if (tokenID == null)
-                return;
-
-            List<MikaTask> tasks = new();
-
-            ExitChildrenUIs(tokenID, tasks);
-
-            if (mountLinkQuery.TryGetValue(tokenID, out var mountInfoRepo))
-            {
-                MikaTask BeforeRecoverySelf = mountInfoRepo.MountInfo.BeforeRecoverySelf();
-                tasks.Add(BeforeRecoverySelf);
-            }
-            else
-            {
-                logger?.LogError?.Invoke($"Cannot find mountInfoRepo for {tokenID}");
-            }
-
-            await MikaTask.WhenAll(tasks);
-
-            void ExitChildrenUIs(Guid tokenID, List<MikaTask> tasks)
-            {
-                if (mountLinkQuery.TryGetValue(tokenID, out var mountInfoRepo))
-                {
-                    foreach (var mountInfo in mountInfoRepo.Children)
-                    {
-                        MikaTask task = mountInfo.BeforeRecoverySelf();
-                        tasks.Add(task);
-
-                        if (mountInfo.UI is IUI ui)
-                        {
-                            ExitChildrenUIs(mountInfo.TokenID, tasks);
-                        }
-                    }
-                }
-
-            }
-        }
-
-        /// <summary>
-        /// Call all children UI's AfterRecovery(Recovery), include parentUI
-        /// </summary>
-        async MikaTask TreeAfterRecovery(Guid TokenID)
-        {
-            if (TokenID == null)
-                return;
-
-            await RecoveryChildrenUIs(TokenID);
-
-            if (mountLinkQuery.TryGetValue(TokenID, out var mountInfoRepo))
-            {
-                await mountInfoRepo.MountInfo.AfterRecoverySelf();
-            }
-
-            async MikaTask RecoveryChildrenUIs(Guid TokenID)
-            {
-                if (mountLinkQuery.TryGetValue(TokenID, out var mountInfoRepo))
-                {
-                    foreach (var mountInfo in mountInfoRepo.Children)
-                    {
-                        if (mountInfo.UI is IUI ui)
-                        {
-                            await RecoveryChildrenUIs(mountInfo.TokenID);
-                        }
-                    }
-
-                    var tasks = mountInfoRepo.Children
-                        .ToArray()  // make a copy
-                        .Select(r => r.AfterRecoverySelf.Invoke());
-
-                    await MikaTask.WhenAll(tasks);
-                }
-            }
-        }
-
-
-
-        readonly Dictionary<Guid, MountInfoRepo> noParentMountLinkQuery = new();
-
-        void DoAddMountLink(IUI parentUI, MountInfo mountInfo)
-        {
-            var mountRepo = new MountInfoRepo()
-            {
-                MountInfo = mountInfo,
-                Children = new(),
+                TokenID = Guid.NewGuid(),
+                ElementID = elementId,
+                UI = ui,
+                Name = typeof(T).Name,
+                Recovery = () => UIFullTreeRecovery(node),
             };
-            mountLinkQuery.Add(mountInfo.TokenID, mountRepo);
 
-
-            if (parentUI == null)
+            node = new(
+                token.TokenID,
+                token.Name
+            )
             {
-                noParentMountLinkQuery.Add(mountInfo.TokenID, mountRepo);
-                return;
-            }
-
-            if (mountLinkQueryByUI.TryGetValue(parentUI, out var parentTokenID))
-            {
-                if (mountLinkQuery.TryGetValue(parentTokenID, out var repo))
+                BeforeRecoverySelf = () =>
                 {
-                    repo.Children.Add(mountInfo);
-                }
-            }
+                    node.ChangeStatus(from: NodeStatus.Created, to: NodeStatus.BeforeRecoveryed);
+                },
+                AfterRecoverySelf = () =>
+                {
+                    nodeManager.DetachNode(node, ui);
+                    virtualUIElement.Recovery(ui);
+                },
+            };
+
+            nodeManager.AttachNode(parentUI, node, ui);
+
+            combinedPlugin.OnVirtualUICreated(token, parentUI);
+            onCreated?.Invoke();
+
+            return token;
+
 
 
         }
 
-        void DoRemoveMountLink(IUI parentUI, MountInfo mountInfo)
+        internal void UIFullTreeRecovery(Node node)
         {
-            mountLinkQuery.Remove(mountInfo.TokenID);
+            logger?.Log?.Invoke($"Start recovery UI {node.Name} and its children.");
 
-            if (parentUI == null)
+            if (node.ValidateStatus(NodeStatus.Created) == false)
             {
-                noParentMountLinkQuery.Remove(mountInfo.TokenID);
-                return;
+                throw new Exception($"{node} is in wrong status: {node.Status}. Expected status: {NodeStatus.Created}");
             }
 
-            if (mountLinkQueryByUI.TryGetValue(parentUI, out var parentTokenID))
+            try
             {
-                if (mountLinkQuery.TryGetValue(parentTokenID, out var repo))
+                TreeBeforeRecovery(node.TokenID);
+                TreeAfterRecovery(node.TokenID);
+            }
+            catch (Exception e)
+            {
+                logger?.LogError?.Invoke(e);
+            }
+
+
+            void TreeBeforeRecovery(Guid tokenID)
+            {
+                if (tokenID == Guid.Empty)
                 {
-                    repo.Children.Remove(mountInfo);
+                    logger?.LogError?.Invoke($"Invalid tokenID: {tokenID}");
+                    return;
                 }
+
+                if (nodeManager.TryGetNode(tokenID, out var node) == false)
+                {
+                    logger?.LogError?.Invoke($"Cannot find UI node for {tokenID}");
+                    return;
+                }
+
+                foreach (var childId in node.Children.ToArray())
+                {
+                    TreeBeforeRecovery(childId);
+                }
+
+                node.BeforeRecoverySelf();
+
+            }
+
+            void TreeAfterRecovery(Guid tokenID)
+            {
+                if (tokenID == Guid.Empty)
+                {
+                    logger?.LogError?.Invoke($"Invalid tokenID: {tokenID}");
+                    return;
+                }
+
+                if (nodeManager.TryGetNode(tokenID, out var node) == false)
+                {
+                    logger?.LogError?.Invoke($"Cannot find UI node for {tokenID}");
+                    return;
+                }
+
+                foreach (var childId in node.Children.ToArray())
+                {
+                    TreeAfterRecovery(childId);
+                }
+
+                node.AfterRecoverySelf();
             }
 
         }
 
         public virtual async System.Threading.Tasks.ValueTask DisposeAsync()
         {
-            foreach (var repo in noParentMountLinkQuery.Values.ToArray())
+            foreach (var node in nodeManager.GetRootNodes())
             {
-                await repo.MountInfo.FullRecovery();
+                UIFullTreeRecovery(node);
             }
 
-            mountLinkQuery.Clear();
-            mountLinkQueryByUI.Clear();
-            noParentMountLinkQuery.Clear();
-
+            nodeManager.Dispose();
         }
     }
 

@@ -17,11 +17,11 @@ namespace MikaUISystem
     {
         public void Init();
     }
-
-    public interface IUIAsyncRecoverable : IUI
+    
+    public interface IUITransitionable : IUI
     {
-        public Task OnRecovery();
+        public ValueTask WaitUntilVisible();
+        public ValueTask WaitUntilHidden();
     }
-
 
 }

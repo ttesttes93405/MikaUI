@@ -11,7 +11,9 @@ namespace MikaUISystem
     public sealed class UIManager : UIManager<MonoBehaviour, Transform>
     {
 
-        readonly CanvasProvider canvasProvider;
+        public CanvasProvider CanvasProvider { get; private set; }
+
+
 
         public UIManager(
             IUIElementProvider<MonoBehaviour, Transform> uiElementProvider,
@@ -21,11 +23,10 @@ namespace MikaUISystem
             Logger logger = null
             ) : base(
                 uiElementProvider,
-                new CanvasProvider(canvasRoot, canvasTemplate),
                 plugins,
                 logger)
         {
-            canvasProvider = CanvasProvider as CanvasProvider;
+            CanvasProvider = new CanvasProvider(canvasRoot, canvasTemplate);
         }
 
 
@@ -38,33 +39,13 @@ namespace MikaUISystem
             Logger logger = null
             ) : base(
                 new DefaultUIElementProvider(uIElementSources, poolRoot),
-                new CanvasProvider(canvasRoot, canvasTemplate),
                 plugins ?? PluginCreator.Create(),
                 logger)
         {
-            canvasProvider = CanvasProvider as CanvasProvider;
+            CanvasProvider = new CanvasProvider(canvasRoot, canvasTemplate);
         }
 
-
-        readonly Dictionary<Type, IUI> uniqueUIs = new();
-
-        public async Task<T> Unique<T>() where T : MonoBehaviour, IUI
-        {
-            if (uniqueUIs.TryGetValue(typeof(T), out var ui) && ui != null)
-            {
-                return ui as T;
-            }
-
-
-            (var newUI, var recoveryNewUI) = await Create<T>(0);    // Unique UI will never be recovered.
-
-            uniqueUIs[typeof(T)] = newUI;
-
-            return newUI;
-
-        }
-
-        public async Task<UIControlToken<T>> Create<T>() where T : MonoBehaviour, IUI
+        public async Task<UIControlToken<T, Transform>> Create<T>() where T : MonoBehaviour, IUI
         {
             try
             {
@@ -77,12 +58,24 @@ namespace MikaUISystem
             }
         }
 
-        public async Task<UIControlToken<T>> Create<T>(int sortingOrder, string name = "") where T : MonoBehaviour, IUI
+
+        public async Task<UIControlToken<T, Transform>> Create<T>(int sortingOrder, string name = "") where T : MonoBehaviour, IUI
         {
-            var canvas = canvasProvider.Requset(sortingOrder);
+            var canvas = CanvasProvider.Requset(sortingOrder);
+            var slot = new Slot(null, canvas.transform);
+
             try
             {
-                return await InternalCreate<T>(name, canvas.transform, null, sortingOrder, null);
+                var token = await Create<T>(slot, slotRectConfigs: null, name: name);
+
+                CanvasProvider.Registry(token.TokenID, sortingOrder);
+
+                token.OnDispose += () =>
+                {
+                    CanvasProvider.Unregistry(token.TokenID);
+                };
+
+                return token;
             }
             catch (Exception e)
             {
@@ -91,11 +84,9 @@ namespace MikaUISystem
             }
         }
 
-        public override async ValueTask DisposeAsync()
+        public override ValueTask DisposeAsync()
         {
-            uniqueUIs.Clear();
-            
-            await base.DisposeAsync();
+            return base.DisposeAsync();
         }
 
     }
