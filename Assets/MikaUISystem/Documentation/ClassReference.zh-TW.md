@@ -16,7 +16,7 @@
 
 ## Core Lifecycle Types
 
-### `UIManager<TUI, TContainer>`
+### `UIManager<TUI, TContainer, TSlotConfig>`
 
 整套 lifecycle 的中央協調者。
 
@@ -30,9 +30,13 @@
 
 當你想使用 generic lifecycle system，而不是直接綁死 Unity-specific container 時，這個型別就是核心入口。
 
-### `UIControlToken` 與 `UIControlToken<TUI, TContainer>`
+### `UIControlToken`、`UIControlToken<TUI>` 與 `UIControlToken<TUI, TContainer>`
 
-visual UI 的 lifetime handle。
+UI 的 lifetime handle，分三個層級：
+
+- `UIControlToken` — base type，持有 token ID、element ID、名稱與 disposal 邏輯。
+- `UIControlToken<TUI>` — 加入 UI instance；`TUI : IBaseUI`。虛擬與視覺 UI 皆適用。
+- `UIControlToken<TUI, TContainer>` — sealed；加入 container；`TUI : IVisualUI`。僅供視覺 UI 使用。
 
 主要責任：
 
@@ -43,13 +47,10 @@ visual UI 的 lifetime handle。
 
 對 caller 來說，這通常是最重要的 runtime object。只要你還持有 token，就代表你還持有 UI 的 lifetime ownership。
 
-### `VirtualUIControlToken` 與 `VirtualUIControlToken<T>`
+`CreateVirtual<T>()` 回傳 `UIControlToken<T>`，其中 `T : IVirtualUI`。  
+`Create<T>()` 回傳 `UIControlToken<T, TContainer>`，其中 `T : IVisualUI`。
 
-virtual UI 的 lifetime handle。
-
-當某個 managed object 要參與同一套 lifecycle model，但本身不是 `MonoBehaviour` 時，就會用到這個型別。
-
-### `SlotRectConfigs`
+### `SlotRectConfigs` *(Unity layer)*
 
 在 create UI 時傳入的 layout data。
 
@@ -58,43 +59,49 @@ virtual UI 的 lifetime handle。
 - 描述 anchors、pivot、size delta 與 anchored position
 - 讓 caller 可以覆寫預設 layout，而不是只能依賴 template 的 RectTransform
 
-這個型別主要會被 Unity 端的 fitting 行為使用。
+這個型別定義在 Unity layer，作為 `TSlotConfig` 的具體實作傳入 `UIManager`。
 
-### `IVirtualUI`
+### `IBaseUI`
 
-用來標記 lifecycle-managed、但不一定需要 visual 呈現的物件。
+所有 lifecycle-managed UI 型別的共用 base。
+
+當一個型別需要參與 node tree，無論它是否有視覺呈現，都應該實作這個 interface。
+
+### `IVirtualUI : IBaseUI`
+
+用來標記 lifecycle-managed、但不需要 visual container 的物件。
 
 適合拿來表示 non-visual 的 owned runtime object，例如 state container 或 flow controller。
 
-### `IUI`
+### `IVisualUI : IBaseUI`
 
 用來標記由 system 管理的 visual UI。
 
-只要是透過標準 visual path 建立的 UI，都應該實作這個 interface。
+只要是透過標準 visual path 建立的 UI，都應該實作這個 interface。`IVisualUI` 與 `IVirtualUI` 的分離確保了 `CreateVirtual<T>()` 只接受純邏輯型別——誤傳視覺 UI 型別是 compile-time error。
 
-### `IUIReuseable`
+### `IUIEffectable : IVisualUI`
 
-用於 pooled UI 的 interface。
+用於每次使用時需要 setup 與 cleanup 的 visual UI。
 
 主要責任：
 
-- 提供 `OnUIUse()`，讓 provider 可以在每次 reuse 時重設 UI
+- 提供 `UseEffect()`；它會執行 setup，並可回傳在 UI recovery 時執行的 cleanup action
 
-當你希望同一個 UI instance 回到 pool，而不是每次都 destroy 時，就應該使用它。
+可用它重設每次使用的狀態、註冊暫時 listener，或執行其他綁定 lifecycle 的 setup。
 
-### `IUIInit`
+### `IUIInit : IVisualUI`
 
-用於一次性 initialization 的 interface。
+用於 visual UI 一次性 initialization 的 interface。
 
 主要責任：
 
 - 提供 `Init()`，用來執行每個 underlying element instance 只該做一次的 setup
 
-不要把它當成每次開啟 UI 的 reset hook。
+不要把它當成每次開啟 UI 的 reset hook。這個 interface 繼承自 `IVisualUI`，只適用於透過 `Create<T>()` 建立的 visual UI，不適用於 `CreateVirtual<T>()`。
 
-### `IUITransitionable`
+### `IUITransitionable : IVisualUI`
 
-用於參與 transition timing 的 UI interface。
+用於參與 transition timing 的 visual UI interface。
 
 主要責任：
 
@@ -108,11 +115,11 @@ virtual UI 的 lifetime handle。
 
 當建立的物件不需要具體 visual container，只需要 parent context 時，就會用到它。
 
-### `ISlot<TContainer>`
+### `ISlot<TContainer> : IVirtualSlot`
 
 同時定義 parent 關係與實際 container。
 
-當 visual UI 需要被 attach 到真正的 runtime container 時，就應該使用它。
+當 visual UI 需要被 attach 到真正的 runtime container 時，就應該使用它。因為 `ISlot<TContainer>` 繼承 `IVirtualSlot`，任何帶有 container 的 slot 也同時滿足 virtual parent 關係。
 
 ### `VirtualSlot`
 
@@ -138,7 +145,7 @@ provider 端用來描述 create 與 recovery 的 descriptor。
 
 一般使用者不一定會直接操作這兩個型別，但 provider 會用它們來定義 element 如何被建立，以及之後如何被 recovery。
 
-### `IPlugin<TUI, TContainer>`
+### `IPlugin<TUI, TContainer, TSlotConfig>`
 
 plugin 的 base contract。
 
@@ -149,7 +156,7 @@ plugin 的 base contract。
 
 如果你要把 cross-cutting behavior 掛進 lifecycle event，這就是入口。
 
-### `IPluginUICreatedHandler<TUI, TContainer>`
+### `IPluginUICreatedHandler<TUI, TContainer, TSlotConfig>`
 
 在 visual UI 建立後執行。
 
@@ -161,7 +168,7 @@ plugin 的 base contract。
 
 適合放那些必須在 UI 仍處於 active 狀態時先做的 teardown 準備。
 
-### `IPluginUIRecoveryedHandler`
+### `IPluginUIRecoveredHandler`
 
 在 visual UI recovery 完成後執行。
 
@@ -189,7 +196,7 @@ plugin 的 base contract。
 
 parent-child recovery 順序之所以能夠 deterministic，就是靠這個結構。
 
-### `PluginCombiner<TUI, TContainer>`
+### `PluginCombiner<TUI, TContainer, TSlotConfig>`
 
 負責排序 plugins 並 dispatch lifecycle events。
 
@@ -263,7 +270,7 @@ core layer 使用的 custom awaitable。
 
 這讓 screen-layer 管理不需要散落在各個 UI script 裡。
 
-### `Slot`
+### `VisualSlot`
 
 `ISlot<Transform>` 的 Unity 實作。
 
@@ -277,17 +284,17 @@ core layer 使用的 custom awaitable。
 
 當你希望直接取得標準行為組合，而不是自己手動組裝 default plugins 時，就會使用它。
 
-### `InjectUIManagerPlugin<TUI, TContainer>`
+### `InjectUIManagerPlugin<TUI, TContainer, TSlotConfig>`
 
 把安裝好的 manager 注入到 created object 的相容欄位中。
 
 當 UI object 需要存取 manager，但你又不想讓每個 caller 都自己 wiring dependency 時，這個 plugin 很有用。
 
-### `UIInitPlugin<TUI, TContainer>`
+### `UIInitPlugin<TUI, TContainer, TSlotConfig>`
 
-為實作 `IUIInit` 的物件執行 `Init()`。
+為實作 `IUIInit` 的 visual UI 執行 `Init()`。
 
-它讓一次性的 initialization 跟 lifecycle 綁在一起，而不是散落在 caller code 中。
+它讓一次性的 initialization 跟 lifecycle 綁在一起，而不是散落在 caller code 中。Virtual UI 不參與這個 plugin。
 
 ### `UIRenamePlugin`
 
@@ -313,7 +320,7 @@ core layer 使用的 custom awaitable。
 - 等待 source UI 進入 hidden 狀態
 - 在 handoff 完成後視需要 dispose 舊 token
 
-如果 UI lifecycle 包含動畫化的顯示切換，這個 utility 會很有幫助。
+如果 UI lifecycle 包含動畫化的顯示切換，這個 utility 會很有幫助。target 型別必須同時實作 `IVisualUI` 與 `IUITransitionable`。
 
 ## 建議閱讀順序
 
@@ -321,7 +328,7 @@ core layer 使用的 custom awaitable。
 
 1. `UIManager`
 2. `UIControlToken`
-3. `IUI`、`IUIReuseable`、`IUIInit`、`IUITransitionable`
+3. `IBaseUI`、`IVirtualUI`、`IVisualUI`、`IUIEffectable`、`IUIInit`、`IUITransitionable`
 4. `ISlot` 與 `IVirtualSlot`
 5. `DefaultUIElementSource` 與 `DefaultUIElementProvider`
 6. `IPlugin` 與 built-in plugins

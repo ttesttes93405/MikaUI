@@ -177,15 +177,15 @@ child UI 會被插入 parent UI 的指定位置，並且在 parent UI recovery �
 
 ### `IUIInit`
 
-`IUIInit` 適合處理一次性的 element initialization。
+`IUIInit` 適合處理 visual UI 的一次性 element initialization。
 
-像是穩定的 reference 綁定，或只應該對同一個 underlying element 做一次的 setup，都適合放在這裡。
+像是穩定的 reference 綁定，或只應該對同一個 underlying element 做一次的 setup，都適合放在這裡。這個 interface 只適用於透過 `Create<T>()` 建立的 visual UI。
 
-### `IUIReuseable`
+### `IUIEffectable`
 
-`IUIReuseable` 用在 UI 應該回到 pool，而不是被 destroy 的情況。
+`IUIEffectable` 用在 visual UI 每次使用時需要 setup 與 cleanup 的情況。
 
-`OnUIUse()` 應該負責把 UI reset 回下一次使用前的乾淨狀態。
+`UseEffect()` 應該負責把 UI reset 回下一次使用前的乾淨狀態，並可回傳在 recovery 時執行的 cleanup action。
 
 例如重新打開「商城視窗」時，把搜尋條件、暫存選取、提示文字或暫時性 listener 清乾淨，就屬於這一層的責任。
 
@@ -215,7 +215,7 @@ plugin 可以處理跨 UI 共用的行為，可以參與的階段包括：
 Unity 預設 plugin 已經處理了一些基礎行為，例如：
 
 - 注入 manager instance
-- 執行 `Init()`
+- 為實作 `IUIInit` 的 visual UI 執行 `Init()`
 - 替建立中的 UI 與 recovering UI 重新命名
 - 套用 RectTransform fitting
 
@@ -237,9 +237,14 @@ Unity 層額外提供像這樣的 runtime 行為：
 
 ## Virtual UI
 
-這個 package 也支援 `IVirtualUI`。
+這個 package 透過共用的 `IBaseUI` base 支援兩種 UI 物件：
 
-當某個 runtime object 需要參與同一套 ownership / lifecycle model，但本身不需要是 GameObject 時，就很適合用 `IVirtualUI`。
+- `IVisualUI` — 需要 GameObject 與 container 的 visual UI，透過 `Create<T>()` 建立。
+- `IVirtualUI` — 不需要 GameObject，但需要參與同一套 ownership / lifecycle model 的 non-visual 物件，透過 `CreateVirtual<T>()` 建立。
+
+兩者明確分離，誤把 `IVisualUI` 型別傳入 `CreateVirtual<T>()` 是 compile-time error。
+
+`IVirtualUI` 適合用在那些沒有視覺呈現、但應該跟 token-based ownership model 共存的 runtime object。
 
 常見用途包括：
 

@@ -4,7 +4,7 @@ using MikaUISystem;
 using UnityEngine;
 using UnityEngine.UI;
 
-public class UI_HelloWorld : MonoBehaviour, IUI, IUIReuseable
+public class UI_HelloWorld : MonoBehaviour, IVisualUI, IUIEffectable
 {
 
     [SerializeField]
@@ -59,7 +59,7 @@ public class UI_HelloWorld : MonoBehaviour, IUI, IUIReuseable
 
     }
 
-    public Action OnUIUse()
+    public Action UseEffect()
     {
         helloText.text = "";
         mikaText.text = "";

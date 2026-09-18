@@ -16,7 +16,7 @@ If you are new to the package, start with `UIManager`, the control tokens, and t
 
 ## Core Lifecycle Types
 
-### `UIManager<TUI, TContainer>`
+### `UIManager<TUI, TContainer, TSlotConfig>`
 
 The central lifecycle coordinator.
 
@@ -30,9 +30,13 @@ Main responsibilities:
 
 Use this type when you want the generic lifecycle system without committing to Unity-specific containers.
 
-### `UIControlToken` and `UIControlToken<TUI, TContainer>`
+### `UIControlToken`, `UIControlToken<TUI>`, and `UIControlToken<TUI, TContainer>`
 
-The lifetime handle for a created visual UI.
+The lifetime handle for a created UI, available in three levels:
+
+- `UIControlToken` — base type, carries token ID, element ID, name, and disposal logic.
+- `UIControlToken<TUI>` — adds the UI instance; `TUI : IBaseUI`. Used for both virtual and visual UIs.
+- `UIControlToken<TUI, TContainer>` — sealed; adds the container; `TUI : IVisualUI`. Used for visual UIs only.
 
 Main responsibilities:
 
@@ -43,13 +47,10 @@ Main responsibilities:
 
 For callers, this is the most important runtime object. Holding the token means holding the UI lifetime.
 
-### `VirtualUIControlToken` and `VirtualUIControlToken<T>`
+`CreateVirtual<T>()` returns `UIControlToken<T>` where `T : IVirtualUI`.  
+`Create<T>()` returns `UIControlToken<T, TContainer>` where `T : IVisualUI`.
 
-The lifetime handle for a created virtual UI.
-
-Use this when the managed object follows the same lifecycle model but is not a `MonoBehaviour`.
-
-### `SlotRectConfigs`
+### `SlotRectConfigs` *(Unity layer)*
 
 Layout data passed during UI creation.
 
@@ -58,43 +59,49 @@ Main uses:
 - Describes anchors, pivot, size delta, and anchored position for slot fitting.
 - Lets callers override layout instead of relying only on the template RectTransform.
 
-This type is mainly used by Unity-side fitting behavior.
+This type is defined in the Unity layer as a concrete implementation of `TSlotConfig`.
 
-### `IVirtualUI`
+### `IBaseUI`
 
-Marker interface for lifecycle-managed objects that do not need to be visual.
+Common base for all lifecycle-managed UI objects.
+
+Implement this when a type needs to participate in the node tree regardless of whether it has a visual representation.
+
+### `IVirtualUI : IBaseUI`
+
+Marker interface for lifecycle-managed objects that do not need a visual container.
 
 Use it for non-visual owned runtime objects such as state containers or flow controllers.
 
-### `IUI`
+### `IVisualUI : IBaseUI`
 
 Marker interface for visual UI managed by the system.
 
-Any UI created through the standard visual path should implement this interface.
+Any UI created through the standard visual path should implement this interface. Separating `IVisualUI` from `IVirtualUI` ensures that `CreateVirtual<T>()` only accepts pure-logic types — passing a visual UI type to it is a compile-time error.
 
-### `IUIReuseable`
+### `IUIEffectable : IVisualUI`
 
-Interface for pooled UI.
+Interface for visual UI that needs setup and cleanup for each use cycle.
 
 Main responsibility:
 
-- Provides `OnUIUse()` so the provider can reset the UI each time the instance is reused.
+- Provides `UseEffect()`, which runs setup and can return a cleanup action that runs when the UI is recovered.
 
-Use this when the same UI instance should return to a pool instead of being destroyed.
+Use this to reset per-use state, register temporary listeners, or perform other lifecycle-bound setup. `IUIReuseable` is obsolete; migrate implementations to `IUIEffectable`.
 
-### `IUIInit`
+### `IUIInit : IVisualUI`
 
-Interface for one-time initialization.
+Interface for one-time initialization of visual UIs.
 
 Main responsibility:
 
 - Provides `Init()` for stable setup that should run once per underlying element instance.
 
-Do not use this as a per-open reset hook.
+Do not use this as a per-open reset hook. This interface extends `IVisualUI`, so it is only applicable to visual UIs managed through `Create<T>()`, not `CreateVirtual<T>()`.
 
-### `IUITransitionable`
+### `IUITransitionable : IVisualUI`
 
-Interface for UI that participates in transition timing.
+Interface for visual UI that participates in transition timing.
 
 Main responsibility:
 
@@ -108,11 +115,11 @@ Defines only the parent relationship for lifecycle ownership.
 
 Use this when the created object does not need a concrete visual container.
 
-### `ISlot<TContainer>`
+### `ISlot<TContainer> : IVirtualSlot`
 
 Defines both a parent relationship and a concrete container.
 
-Use this when a visual UI should be attached to a real runtime container.
+Use this when a visual UI should be attached to a real runtime container. Because `ISlot<TContainer>` inherits `IVirtualSlot`, any slot with a container also satisfies the virtual parent relationship.
 
 ### `VirtualSlot`
 
@@ -138,7 +145,7 @@ Provider-side creation and recovery descriptors.
 
 These are not usually the first types that users interact with directly, but providers use them to describe how an element is created and later recovered.
 
-### `IPlugin<TUI, TContainer>`
+### `IPlugin<TUI, TContainer, TSlotConfig>`
 
 Base plugin contract.
 
@@ -149,7 +156,7 @@ Main responsibilities:
 
 This is the entry point for attaching cross-cutting behavior to lifecycle events.
 
-### `IPluginUICreatedHandler<TUI, TContainer>`
+### `IPluginUICreatedHandler<TUI, TContainer, TSlotConfig>`
 
 Runs after a visual UI is created.
 
@@ -161,7 +168,7 @@ Runs before a visual UI is recovered.
 
 Use this for teardown preparation that should run while the UI still exists in its active form.
 
-### `IPluginUIRecoveryedHandler`
+### `IPluginUIRecoveredHandler`
 
 Runs after a visual UI is recovered.
 
@@ -189,7 +196,7 @@ Main responsibilities:
 
 This is the internal structure that makes parent-child recovery order deterministic.
 
-### `PluginCombiner<TUI, TContainer>`
+### `PluginCombiner<TUI, TContainer, TSlotConfig>`
 
 Orders plugins and dispatches lifecycle events.
 
@@ -263,7 +270,7 @@ Main responsibilities:
 
 This keeps screen-layer management out of individual UI scripts.
 
-### `Slot`
+### `VisualSlot`
 
 Unity implementation of `ISlot<Transform>`.
 
@@ -277,17 +284,17 @@ Factory for the default Unity plugin set.
 
 Use this when you want the standard behavior bundle instead of manually assembling the default plugins.
 
-### `InjectUIManagerPlugin<TUI, TContainer>`
+### `InjectUIManagerPlugin<TUI, TContainer, TSlotConfig>`
 
 Injects the installed manager into a compatible field on the created object.
 
 Use this when UI objects need access to the manager without requiring each caller to wire that dependency manually.
 
-### `UIInitPlugin<TUI, TContainer>`
+### `UIInitPlugin<TUI, TContainer, TSlotConfig>`
 
-Runs `Init()` for objects that implement `IUIInit`.
+Runs `Init()` for visual UIs that implement `IUIInit`.
 
-This keeps one-time initialization attached to the lifecycle instead of placing it in ad hoc caller code.
+This keeps one-time initialization attached to the lifecycle instead of placing it in ad hoc caller code. Virtual UIs do not participate in this plugin.
 
 ### `UIRenamePlugin`
 
@@ -313,7 +320,7 @@ Main responsibilities:
 - Waits for the source UI to become hidden.
 - Optionally disposes the previous token after the handoff.
 
-Use this when animated visibility changes are part of the intended lifecycle.
+Use this when animated visibility changes are part of the intended lifecycle. The target type must implement both `IVisualUI` and `IUITransitionable`.
 
 ## Suggested Reading Order
 
@@ -321,7 +328,7 @@ If you are trying to understand the package from the API surface inward, read th
 
 1. `UIManager`
 2. `UIControlToken`
-3. `IUI`, `IUIReuseable`, `IUIInit`, `IUITransitionable`
+3. `IBaseUI`, `IVirtualUI`, `IVisualUI`, `IUIEffectable`, `IUIInit`, `IUITransitionable`
 4. `ISlot` and `IVirtualSlot`
 5. `DefaultUIElementSource` and `DefaultUIElementProvider`
 6. `IPlugin` and the built-in plugins

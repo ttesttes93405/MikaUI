@@ -176,17 +176,17 @@ One important detail is that the system treats first-time setup and per-use rese
 
 ### `IUIInit`
 
-Use `IUIInit` for one-time element initialization.
+Use `IUIInit` for one-time element initialization of visual UIs.
 
-Use it for stable setup that should happen only once for a given element instance.
+Use it for stable setup that should happen only once for a given element instance. This interface applies only to visual UIs created through `Create<T>()`.
 
-### `IUIReuseable`
+### `IUIEffectable`
 
-Use `IUIReuseable` when the UI should return to a pool instead of being destroyed.
+Use `IUIEffectable` when a visual UI needs setup and cleanup for each use cycle.
 
-`OnUIUse()` is where runtime state should be reset for the next use cycle.
+`UseEffect()` is where runtime state should be reset for the next use cycle; it may return a cleanup action that runs on recovery.
 
-Reusable UI should clear temporary text, selection state, temporary listeners, and other per-use state here.
+Clear temporary text, selection state, temporary listeners, and other per-use state here. `IUIReuseable` is obsolete; migrate existing implementations to `IUIEffectable`.
 
 ### Recovery semantics
 
@@ -216,7 +216,7 @@ Plugins can participate in:
 The default Unity package already uses plugins for basic behaviors such as:
 
 - Injecting the manager instance
-- Running `Init()`
+- Running `Init()` for visual UIs that implement `IUIInit`
 - Renaming created and recovering UIs
 - Fitting RectTransform values to the target container
 
@@ -238,9 +238,14 @@ The Unity layer acts as an adapter around that ownership and lifecycle core.
 
 ## Virtual UI
 
-The package also supports `IVirtualUI`.
+The package supports two kinds of UI objects through a shared `IBaseUI` base:
 
-This is useful when a runtime object should participate in the same ownership and lifecycle model without requiring a GameObject.
+- `IVisualUI` — for visual UIs that require a GameObject and a container. Created through `Create<T>()`.
+- `IVirtualUI` — for non-visual objects that participate in the same ownership and lifecycle model without requiring a GameObject. Created through `CreateVirtual<T>()`.
+
+The separation means passing an `IVisualUI` type to `CreateVirtual<T>()` is a compile-time error, making the distinction explicit.
+
+`IVirtualUI` is useful when a runtime object should share the token-based ownership model but has no visual representation.
 
 Typical uses include:
 
