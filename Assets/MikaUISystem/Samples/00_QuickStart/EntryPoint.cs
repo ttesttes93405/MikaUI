@@ -23,7 +23,7 @@ public class EntryPoint : MonoBehaviour
         DisplayUI(mikaUIManager);
     }
 
-    async void DisplayUI(UIManager uiManager)
+    async void DisplayUI(UnityUIManager uiManager)
     {
         string name = "";
         using (var token = await uiManager.Create<UI_HelloWorld>(sortingOrder: 0))
@@ -32,12 +32,12 @@ public class EntryPoint : MonoBehaviour
         }
     }
 
-    UIManager CreateMikaUIManager()
+    UnityUIManager CreateMikaUIManager()
     {
         var uiElementProvider = new DefaultUIElementProvider(uiElementSource.GetSources(), poolRoot);
         var plugins = MikaUISystem.Plugin.PluginCreator.Create();
 
-        var mikaUIManager = new UIManager(
+        var mikaUIManager = new UnityUIManager(
             uiElementProvider,
             canvasRoot,
             canvasTemplate,

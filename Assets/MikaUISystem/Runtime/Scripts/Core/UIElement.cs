@@ -6,10 +6,10 @@ namespace MikaUISystem
     public sealed record UIElement<TContainer>
     {
         public string UIName { get; init; }
-        public Func<IUI> GetTemplate { get; init; }
+        public Func<IVisualUI> GetTemplate { get; init; }
 
-        public Func<TContainer, MikaTask<(IUI ui, Action onCreated, Guid elementID)>> Create { get; init; }
-        public Action<IUI> Recovery { get; init; }
+        public Func<TContainer, MikaTask<(IVisualUI ui, Action onCreated, Guid elementID)>> Create { get; init; }
+        public Action<IVisualUI> Recovery { get; init; }
 
     }
 

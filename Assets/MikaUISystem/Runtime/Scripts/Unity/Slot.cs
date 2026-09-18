@@ -2,18 +2,26 @@ using UnityEngine;
 
 namespace MikaUISystem
 {
-    public record Slot : VirtualSlot, ISlot<Transform>
+    public record VisualSlot : ISlot<Transform>
     {
+        public IBaseUI ParentUI { get; init; }
         public Transform Container { get; init; }
 
-        public Slot(IUI parentUI, Transform container) : base(parentUI)
+        public VisualSlot(IVisualUI parentUI, Transform container)
         {
+            ParentUI = parentUI;
+            Container = container;
+        }
+
+        public VisualSlot(IVirtualUI parentUI, Transform container)
+        {
+            ParentUI = parentUI;
             Container = container;
         }
 
         public override string ToString()
         {
-            return $"{nameof(Slot)}({nameof(ParentUI)}: {ParentUI}, {nameof(Container)}: {(Container == null ? "null" : Container.name)})";
+            return $"{nameof(VisualSlot)}({nameof(ParentUI)}: {ParentUI}, {nameof(Container)}: {(Container == null ? "null" : Container.name)})";
         }
     }
 

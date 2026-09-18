@@ -24,7 +24,7 @@ namespace MikaUISystem
 
 
         List<UIElement<Transform>> uiElementList = null;
-        public UIElement<Transform> GetUIElement<T>(string name) where T : MonoBehaviour, IUI
+        public UIElement<Transform> GetUIElement<T>(string name) where T : MonoBehaviour, IVisualUI
         {
             uiElementList ??= GetUIElements(poolRoot);
             return uiElementList.FirstOrDefault(p => p.GetTemplate().GetType() == typeof(T) && p.UIName == name);
@@ -49,16 +49,16 @@ namespace MikaUISystem
 
             UIElement<Transform> CreateUIElement(IUIElementSource source)
             {
-                IUI mikaUITemplate = source.UITemplate as IUI;
-                if (source.UITemplate is IUI == false)
+                IVisualUI mikaUITemplate = source.UITemplate as IVisualUI;
+                if (source.UITemplate is IVisualUI == false)
                 {
-                    Debug.LogError($"UIElementProvider: {source.UITemplate.name} is not IUI");
+                    Debug.LogError($"UIElementProvider: {source.UITemplate.name} is not IVisualUI");
                     return null;
                 }
 
-                Dictionary<IUI, Action> uiCleaner = new();
-                Queue<IUI> uiPool = new();
-                Dictionary<IUI, Guid> uiIDMap = new();
+                Dictionary<IVisualUI, Action> uiCleaner = new();
+                Queue<IVisualUI> uiPool = new();
+                Dictionary<IVisualUI, Guid> uiIDMap = new();
 
 
                 return new UIElement<Transform>
@@ -67,9 +67,9 @@ namespace MikaUISystem
                     GetTemplate = () => mikaUITemplate,
                     Create = (trans) =>
                     {
-                        bool isReuseable = source.UITemplate is IUIReuseable;
+                        bool isReuseable = source.UITemplate is IUIEffectable;
 
-                        IUI ui = null;
+                        IVisualUI ui = null;
                         if (isReuseable && uiPool.Count > 0)
                         {
                             ui = uiPool.Dequeue();
@@ -77,7 +77,7 @@ namespace MikaUISystem
                         }
                         else
                         {
-                            ui = UnityEngine.Object.Instantiate(source.UITemplate, trans) as IUI;
+                            ui = UnityEngine.Object.Instantiate(source.UITemplate, trans) as IVisualUI;
                         }
 
                         if (uiIDMap.TryGetValue(ui, out var id) == false)
@@ -86,19 +86,19 @@ namespace MikaUISystem
                             uiIDMap.Add(ui, id);
                         }
 
-                        return MikaTask<(IUI, Action, Guid)>.FromResult((ui, OnCreated, id));
+                        return MikaTask<(IVisualUI, Action, Guid)>.FromResult((ui, OnCreated, id));
 
                         void OnCreated()
                         {
-                            if (ui is IUIReuseable reuseable)
+                            if (ui is IUIEffectable reuseable)
                             {
-                                uiCleaner.TryAdd(ui, reuseable.OnUIUse());
+                                uiCleaner.TryAdd(ui, reuseable.UseEffect());
                             }
                         }
                     },
                     Recovery = (ui) =>
                     {
-                        if (ui is IUIReuseable reuseable)
+                        if (ui is IUIEffectable reuseable)
                         {
                             if (uiCleaner.TryGetValue(ui, out var cleaner))
                             {

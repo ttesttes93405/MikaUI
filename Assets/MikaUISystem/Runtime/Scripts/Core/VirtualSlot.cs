@@ -3,13 +3,17 @@ namespace MikaUISystem
 {
     public record VirtualSlot : IVirtualSlot
     {
-        public IUI ParentUI { get; init; }
+        public IBaseUI ParentUI { get; init; }
 
-        public VirtualSlot(IUI parentUI)
+        public VirtualSlot(IVisualUI parentUI)
         {
             ParentUI = parentUI;
         }
 
+        public VirtualSlot(IVirtualUI parentUI)
+        {
+            ParentUI = parentUI;
+        }
 
         public override string ToString()
         {
