@@ -8,18 +8,18 @@ namespace MikaUISystem
 {
 
 
-    public sealed class UIManager : UIManager<MonoBehaviour, Transform>
+    public sealed class UnityUIManager : MikaUISystem.UIManager<MonoBehaviour, Transform, SlotRectConfigs>
     {
 
         public CanvasProvider CanvasProvider { get; private set; }
 
 
 
-        public UIManager(
+        public UnityUIManager(
             IUIElementProvider<MonoBehaviour, Transform> uiElementProvider,
             RectTransform canvasRoot,
             Canvas canvasTemplate,
-            IEnumerable<IPlugin<MonoBehaviour, Transform>> plugins,
+            IEnumerable<IPlugin<MonoBehaviour, Transform, SlotRectConfigs>> plugins,
             Logger logger = null
             ) : base(
                 uiElementProvider,
@@ -27,25 +27,27 @@ namespace MikaUISystem
                 logger)
         {
             CanvasProvider = new CanvasProvider(canvasRoot, canvasTemplate);
+
+            Application.quitting += Dispose;
         }
 
 
-        public UIManager(
+        public UnityUIManager(
             IEnumerable<DefaultUIElementProvider.IUIElementSource> uIElementSources,
             Transform poolRoot,
             RectTransform canvasRoot,
             Canvas canvasTemplate,
-            IEnumerable<IPlugin<MonoBehaviour, Transform>> plugins = null,
+            IEnumerable<IPlugin<MonoBehaviour, Transform, SlotRectConfigs>> plugins = null,
             Logger logger = null
-            ) : base(
+            ) : this(
                 new DefaultUIElementProvider(uIElementSources, poolRoot),
+                canvasRoot,
+                canvasTemplate,
                 plugins ?? PluginCreator.Create(),
                 logger)
-        {
-            CanvasProvider = new CanvasProvider(canvasRoot, canvasTemplate);
-        }
+        { }
 
-        public async Task<UIControlToken<T, Transform>> Create<T>() where T : MonoBehaviour, IUI
+        public async Task<UIControlToken<T, Transform>> Create<T>() where T : MonoBehaviour, IVisualUI
         {
             try
             {
@@ -54,25 +56,25 @@ namespace MikaUISystem
             catch (Exception e)
             {
                 Debug.LogError(e);
-                throw e;
+                throw;
             }
         }
 
 
-        public async Task<UIControlToken<T, Transform>> Create<T>(int sortingOrder, string name = "") where T : MonoBehaviour, IUI
+        public async Task<UIControlToken<T, Transform>> Create<T>(int sortingOrder, string name = "") where T : MonoBehaviour, IVisualUI
         {
-            var canvas = CanvasProvider.Requset(sortingOrder);
-            var slot = new Slot(null, canvas.transform);
+            var canvas = CanvasProvider.Request(sortingOrder);
+            var slot = new VisualSlot((IVirtualUI)null, canvas.transform);
 
             try
             {
                 var token = await Create<T>(slot, slotRectConfigs: null, name: name);
 
-                CanvasProvider.Registry(token.TokenID, sortingOrder);
+                CanvasProvider.Register(token.TokenID, sortingOrder);
 
                 token.OnDispose += () =>
                 {
-                    CanvasProvider.Unregistry(token.TokenID);
+                    CanvasProvider.Unregister(token.TokenID);
                 };
 
                 return token;
@@ -80,13 +82,15 @@ namespace MikaUISystem
             catch (Exception e)
             {
                 Debug.LogError(e);
-                throw e;
+                throw;
             }
         }
 
-        public override ValueTask DisposeAsync()
+        public override void Dispose()
         {
-            return base.DisposeAsync();
+            base.Dispose();
+
+            Application.quitting -= Dispose;
         }
 
     }

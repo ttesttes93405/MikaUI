@@ -1,69 +1,60 @@
 
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using MikaUISystem.Plugin;
 
 
 namespace MikaUISystem
 {
-    public record SlotRectConfigs
+    public enum RecoveryPhase
     {
-        public Float2 AnchorMin { get; init; }
-        public Float2 AnchorMax { get; init; }
-        public Float2 AnchorPosition { get; init; }
-        public Float2 Pivot { get; init; }
-        public Float2 SizeDelta { get; init; }
-
-        public SlotRectConfigs() { }
-
-        public static SlotRectConfigs FromStretchFill(RectOffset rectOffset)
-        {
-            return new()
-            {
-                AnchorMin = new Float2(0, 0),
-                AnchorMax = new Float2(1, 1),
-                Pivot = new Float2(0.5f, 0.5f),
-                SizeDelta = new Float2(-rectOffset.Left - rectOffset.Right, -rectOffset.Top - rectOffset.Bottom),
-                AnchorPosition = new Float2((rectOffset.Left - rectOffset.Right) / 2, (rectOffset.Bottom - rectOffset.Top) / 2),
-            };
-        }
+        BeforeRecovery,
+        AfterRecovery,
+        Unexpected,
     }
 
-    public class UIManager<TUI, TContainer> : IAsyncDisposable where TUI : class where TContainer : class
+    public sealed record RecoveryErrorInfo(Guid TokenID, string NodeName, RecoveryPhase Phase, Exception Exception);
+
+    public class UIManager<TUI, TContainer, TSlotConfig> : IDisposable
+        where TUI : class
+        where TContainer : class
+        where TSlotConfig : class
     {
         readonly IUIElementProvider<TUI, TContainer> uiElementProvider;
 
         readonly NodeManager nodeManager;
-        readonly PluginCombiner<TUI, TContainer> combinedPlugin;
+        readonly PluginCombiner<TUI, TContainer, TSlotConfig> combinedPlugin;
         readonly Logger logger;
-        public UIManager(IUIElementProvider<TUI, TContainer> uiElementProvider, IEnumerable<IPlugin<TUI, TContainer>> plugins, Logger logger)
+
+        public event Action<RecoveryErrorInfo> OnRecoveryError;
+
+        public UIManager(IUIElementProvider<TUI, TContainer> uiElementProvider, IEnumerable<IPlugin<TUI, TContainer, TSlotConfig>> plugins, Logger logger)
         {
             this.uiElementProvider = uiElementProvider;
             this.logger = logger;
 
             nodeManager = new NodeManager(logger);
 
-            combinedPlugin = new PluginCombiner<TUI, TContainer>(plugins);
+            combinedPlugin = new PluginCombiner<TUI, TContainer, TSlotConfig>(plugins);
 
             combinedPlugin.Install(this);
         }
 
 
-        public MikaTask<UIControlToken<T, TContainer>> Create<T>(ISlot<TContainer> slot, SlotRectConfigs slotRectConfigs = null, string name = "") where T : class, TUI, IUI
+        public MikaTask<UIControlToken<T, TContainer>> Create<T>(ISlot<TContainer> slot, TSlotConfig slotRectConfigs = null, string name = "") where T : class, TUI, IVisualUI
         {
             try
             {
-                return InternalCreate<T>(name, slot.Container, slot.ParentUI,  slotRectConfigs);
+                return InternalCreate<T>(name, slot.Container, slot.ParentUI, slotRectConfigs);
             }
             catch (Exception e)
             {
                 logger?.LogError?.Invoke(e);
-                throw e;
+                throw;
             }
         }
 
-        async MikaTask<UIControlToken<T, TContainer>> InternalCreate<T>(string name, TContainer container, IUI parentUI, SlotRectConfigs slotRectConfigs) where T : class, TUI, IUI
+        async MikaTask<UIControlToken<T, TContainer>> InternalCreate<T>(string name, TContainer container, IBaseUI parentUI, TSlotConfig slotRectConfigs) where T : class, TUI, IVisualUI
         {
             var uiElement = uiElementProvider.GetUIElement<T>(name);
 
@@ -81,14 +72,13 @@ namespace MikaUISystem
 
             Node node = null;
             UIControlToken<T, TContainer> token = null;
-            token = new()
-            {
-                TokenID = Guid.NewGuid(),
-                ElementID = elementID,
-                UI = ui,
-                Name = $"{typeof(T).Name}_{name}",
-                Recovery = () => UIFullTreeRecovery(node),
-            };
+            token = new(
+                tokenID: Guid.NewGuid(),
+                elementID: elementID,
+                name: $"{name}<{typeof(T).Name}>",
+                ui: ui,
+                recovery: () => UIFullTreeRecovery(node)
+            );
 
             node = new Node(
                 token.TokenID,
@@ -97,15 +87,16 @@ namespace MikaUISystem
             {
                 BeforeRecoverySelf = () =>
                 {
-                    node.ChangeStatus(from: NodeStatus.Created, to: NodeStatus.BeforeRecoveryed);
+                    node.ChangeStatus(from: NodeStatus.Created, to: NodeStatus.BeforeRecovered);
                     combinedPlugin.OnUIWillRecovery(token.Name, token);
                 },
                 AfterRecoverySelf = () =>
                 {
                     nodeManager.DetachNode(node, ui);
-                    combinedPlugin.OnUIRecoveryed(token.Name, token.TokenID);
+                    combinedPlugin.OnUIRecovered(token.Name, token.TokenID);
                     uiElement.Recovery(ui);
                 },
+                OnRecoveryCompleted = token.CompleteDispose,
             };
 
             nodeManager.AttachNode(parentUI, node, ui);
@@ -123,12 +114,12 @@ namespace MikaUISystem
 
         }
 
-        public MikaTask<VirtualUIControlToken<T>> CreateVirtual<T>(IVirtualSlot slot = null) where T : IVirtualUI, new()
+        public MikaTask<UIControlToken<T>> CreateVirtual<T>(IVirtualSlot slot = null) where T : IVirtualUI, new()
         {
             return InternalCreateVirtual<T>(slot?.ParentUI);
         }
 
-        async MikaTask<VirtualUIControlToken<T>> InternalCreateVirtual<T>(IUI parentUI) where T : IVirtualUI, new()
+        async MikaTask<UIControlToken<T>> InternalCreateVirtual<T>(IBaseUI parentUI) where T : IVirtualUI, new()
         {
             var virtualUIElement = uiElementProvider.GetVirtualUIElement<T>();
             (var virtualUI, var onCreated, var elementId) = await virtualUIElement.Create();
@@ -137,16 +128,15 @@ namespace MikaUISystem
             {
                 throw new Exception($"Cannot create UI {typeof(T).Name}");
             }
-            VirtualUIControlToken<T> token = null;
+            UIControlToken<T> token = null;
             Node node = null;
-            token = new()
-            {
-                TokenID = Guid.NewGuid(),
-                ElementID = elementId,
-                UI = ui,
-                Name = typeof(T).Name,
-                Recovery = () => UIFullTreeRecovery(node),
-            };
+            token = new(
+                tokenID: Guid.NewGuid(),
+                elementID: elementId,
+                name: $"<{typeof(T).Name}>",
+                ui: ui,
+                recovery: () => UIFullTreeRecovery(node)
+            );
 
             node = new(
                 token.TokenID,
@@ -155,13 +145,14 @@ namespace MikaUISystem
             {
                 BeforeRecoverySelf = () =>
                 {
-                    node.ChangeStatus(from: NodeStatus.Created, to: NodeStatus.BeforeRecoveryed);
+                    node.ChangeStatus(from: NodeStatus.Created, to: NodeStatus.BeforeRecovered);
                 },
                 AfterRecoverySelf = () =>
                 {
                     nodeManager.DetachNode(node, ui);
                     virtualUIElement.Recovery(ui);
                 },
+                OnRecoveryCompleted = token.CompleteDispose,
             };
 
             nodeManager.AttachNode(parentUI, node, ui);
@@ -192,6 +183,7 @@ namespace MikaUISystem
             catch (Exception e)
             {
                 logger?.LogError?.Invoke(e);
+                OnRecoveryError?.Invoke(new RecoveryErrorInfo(node.TokenID, node.Name, RecoveryPhase.Unexpected, e));
             }
 
 
@@ -214,8 +206,15 @@ namespace MikaUISystem
                     TreeBeforeRecovery(childId);
                 }
 
-                node.BeforeRecoverySelf();
-
+                try
+                {
+                    node.BeforeRecoverySelf();
+                }
+                catch (Exception e)
+                {
+                    logger?.LogError?.Invoke(e);
+                    OnRecoveryError?.Invoke(new RecoveryErrorInfo(node.TokenID, node.Name, RecoveryPhase.BeforeRecovery, e));
+                }
             }
 
             void TreeAfterRecovery(Guid tokenID)
@@ -237,17 +236,39 @@ namespace MikaUISystem
                     TreeAfterRecovery(childId);
                 }
 
-                node.AfterRecoverySelf();
+                try
+                {
+                    node.AfterRecoverySelf();
+                }
+                catch (Exception e)
+                {
+                    logger?.LogError?.Invoke(e);
+                    OnRecoveryError?.Invoke(new RecoveryErrorInfo(node.TokenID, node.Name, RecoveryPhase.AfterRecovery, e));
+                }
+                finally
+                {
+                    try
+                    {
+                        node.OnRecoveryCompleted?.Invoke();
+                    }
+                    catch (Exception e)
+                    {
+                        logger?.LogError?.Invoke(e);
+                        OnRecoveryError?.Invoke(new RecoveryErrorInfo(node.TokenID, node.Name, RecoveryPhase.AfterRecovery, e));
+                    }
+                }
             }
 
         }
 
-        public virtual async System.Threading.Tasks.ValueTask DisposeAsync()
+        public virtual void Dispose()
         {
             foreach (var node in nodeManager.GetRootNodes())
             {
                 UIFullTreeRecovery(node);
             }
+
+            combinedPlugin.Uninstall(this);
 
             nodeManager.Dispose();
         }

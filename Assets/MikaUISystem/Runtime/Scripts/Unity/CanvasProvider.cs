@@ -23,7 +23,7 @@ namespace MikaUISystem
         }
 
 
-        internal Canvas Requset(int sortingOrder)
+        internal Canvas Request(int sortingOrder)
         {
             if (pool.TryGetValue(sortingOrder, out var canvas) == false)
             {
@@ -66,7 +66,7 @@ namespace MikaUISystem
             }
         }
 
-        public void Registry(Guid id, int sortingOrder)
+        public void Register(Guid id, int sortingOrder)
         {
             if (canvasUsingRegistry.TryGetValue(sortingOrder, out var uis) == false)
             {
@@ -77,7 +77,7 @@ namespace MikaUISystem
             uis.Add(id);
         }
 
-        public void Unregistry(Guid id)
+        public void Unregister(Guid id)
         {
             foreach (var (sortingOrder, uis) in canvasUsingRegistry)
             {

@@ -3,48 +3,78 @@ using System;
 
 namespace MikaUISystem
 {
-    internal enum NodeStatus
-    {
-        None,
-        Created,
-        BeforeRecoveryed,
-        Recoveryed,
-    }
-
-
 
     public record UIControlToken : IDisposable
     {
-        public Guid TokenID { get; init; }
-        public Guid ElementID { get; init; }
-        public string Name { get; init; }
 
-        public Action Recovery { get; init; }
-        [Obsolete("Use Recovery instead.")]
-        public Func<MikaTask> RecoveryAsync => () =>
-        {
-            Recovery?.Invoke();
-            return MikaTask.CompletedTask;
-        };
+        readonly Guid tokenID;
+        readonly Guid elementID;
+        readonly string name;
+        readonly Action recovery;
+
+        public Guid TokenID => tokenID;
+        public Guid ElementID => elementID;
+        public string Name => name;
+        public Action Recovery => GetValue(recovery);
 
         public event Action OnDispose;
 
-        bool IsDisposed { get; set; }
+        public bool IsDisposed { get; private set; }
+
+        internal UIControlToken(Guid tokenID, Guid elementID, string name, Action recovery)
+        {
+            this.tokenID = tokenID;
+            this.elementID = elementID;
+            this.name = name;
+            this.recovery = recovery;
+        }
 
         public void Dispose()
         {
             if (IsDisposed)
-                throw new ObjectDisposedException($"Token {Name} ({TokenID}) has already been disposed.");
-            Recovery?.Invoke();
-            OnDispose?.Invoke();
+                return;
+
+            recovery?.Invoke();
+
+            CompleteDispose();
+        }
+
+        /// <summary>
+        /// Completes token disposal after its UI node has recovered. This is also used by
+        /// parent-tree recovery so child tokens accurately reflect their UI lifetime.
+        /// </summary>
+        internal void CompleteDispose()
+        {
+            if (IsDisposed)
+                return;
+
             IsDisposed = true;
+            OnDispose?.Invoke();
+        }
+
+        protected void ThrowIfDisposed()
+        {
+            if (IsDisposed)
+                throw new ControlTokenDisposedException(this);
+        }
+
+        protected T GetValue<T>(T value)
+        {
+            ThrowIfDisposed();
+            return value;
         }
 
     }
 
-    public sealed record UIControlToken<TUI, TContainer> : UIControlToken where TUI : IUI
+    public record UIControlToken<TUI> : UIControlToken where TUI : IBaseUI
     {
-        public TUI UI { get; init; }
+        readonly TUI ui;
+        public TUI UI => GetValue(ui);
+
+        internal UIControlToken(Guid tokenID, Guid elementID, string name, TUI ui, Action recovery) : base(tokenID, elementID, name, recovery)
+        {
+            this.ui = ui;
+        }
 
         public void Deconstruct(out TUI UI, out Action Recovery)
         {
@@ -53,46 +83,10 @@ namespace MikaUISystem
         }
     }
 
-
-
-    public record VirtualUIControlToken : IDisposable
+    public sealed record UIControlToken<TUI, TContainer> : UIControlToken<TUI> where TUI : IVisualUI
     {
-        public Guid TokenID { get; init; }
-        public Guid ElementID { get; init; }
-        public string Name { get; init; }
-
-        internal Action Recovery { get; init; }
-
-        [Obsolete("Use Recovery instead.")]
-        public Func<MikaTask> RecoveryAsync => () =>
+        internal UIControlToken(Guid tokenID, Guid elementID, string name, TUI ui, Action recovery) : base(tokenID, elementID, name, ui, recovery)
         {
-            Recovery?.Invoke();
-            return MikaTask.CompletedTask;
-        };
-
-        public event Action OnDispose;
-
-        bool IsDisposed { get; set; }
-
-        public void Dispose()
-        {
-            if (IsDisposed)
-                throw new ObjectDisposedException($"Token {Name} ({TokenID}) has already been disposed.");
-
-            Recovery?.Invoke();
-            OnDispose?.Invoke();
-            IsDisposed = true;
-        }
-    }
-
-    public sealed record VirtualUIControlToken<T> : VirtualUIControlToken, IDisposable where T : IVirtualUI
-    {
-        public T UI { get; init; }
-
-        public void Deconstruct(out T UI, out Action Recovery)
-        {
-            UI = this.UI;
-            Recovery = Dispose;
         }
     }
 

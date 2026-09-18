@@ -1,6 +1,8 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using NUnit.Framework;
+using MikaUISystem;
 using MikaUISystem.Plugin;
 
 namespace Tests.Core
@@ -29,11 +31,11 @@ namespace Tests.Core
 
                 Assert.That(canvasProvider.RegisteredIds.Count, Is.EqualTo(0));
                 Assert.That(provider.RecoveryCount, Is.EqualTo(1));
-                CollectionAssert.AreEqual(new[] { EventType.Created, EventType.WillRecovery, EventType.Recoveryed }, plugin.Events);
+                CollectionAssert.AreEqual(new[] { EventType.Created, EventType.WillRecovery, EventType.Recovered }, plugin.Events);
             }
             finally
             {
-                manager.DisposeAsync().GetAwaiter().GetResult();
+                manager.Dispose();
             }
         }
 
@@ -60,7 +62,7 @@ namespace Tests.Core
             }
             finally
             {
-                manager.DisposeAsync().GetAwaiter().GetResult();
+                manager.Dispose();
             }
         }
 
@@ -69,7 +71,7 @@ namespace Tests.Core
         {
             var provider = new FakeUIElementProvider();
             var canvasProvider = new FakeCanvasProvider();
-            var manager = new TestableUIManager(provider, canvasProvider, Array.Empty<IPlugin<DummyUI, DummyContainer>>(), DummyLogger.Create());
+            var manager = new TestableUIManager(provider, canvasProvider, Array.Empty<IPlugin<DummyUI, DummyContainer, object>>(), DummyLogger.Create());
 
             try
             {
@@ -86,7 +88,7 @@ namespace Tests.Core
             }
             finally
             {
-                manager.DisposeAsync().GetAwaiter().GetResult();
+                manager.Dispose();
             }
         }
 
@@ -95,7 +97,7 @@ namespace Tests.Core
         {
             var provider = new NullUIElementProvider();
             var canvasProvider = new FakeCanvasProvider();
-            var manager = new TestableUIManager(provider, canvasProvider, Array.Empty<IPlugin<DummyUI, DummyContainer>>(), DummyLogger.Create());
+            var manager = new TestableUIManager(provider, canvasProvider, Array.Empty<IPlugin<DummyUI, DummyContainer, object>>(), DummyLogger.Create());
 
             try
             {
@@ -105,7 +107,7 @@ namespace Tests.Core
             }
             finally
             {
-                manager.DisposeAsync().GetAwaiter().GetResult();
+                manager.Dispose();
             }
         }
 
@@ -115,7 +117,7 @@ namespace Tests.Core
             var provider = new FakeUIElementProvider();
             var canvasProvider = new FakeCanvasProvider();
             var plugin = new TreeRecordingPlugin();
-            var manager = new TestableUIManager(provider, canvasProvider, new IPlugin<DummyUI, DummyContainer>[] { plugin }, DummyLogger.Create());
+            var manager = new TestableUIManager(provider, canvasProvider, new IPlugin<DummyUI, DummyContainer, object>[] { plugin }, DummyLogger.Create());
 
             try
             {
@@ -123,27 +125,84 @@ namespace Tests.Core
                 var childSlot = DummySlot.Child(parentToken.UI);
                 var childToken = manager.Create<DummyUI>(childSlot, name: "Child").WaitResult();
 
+                var parentTokenID = parentToken.TokenID;
+                var childTokenID = childToken.TokenID;
+
                 parentToken.Dispose();
 
                 var expected = new[]
                 {
-                    (TreePluginEventType.Created, parentToken.TokenID),
-                    (TreePluginEventType.Created, childToken.TokenID),
-                    (TreePluginEventType.WillRecovery, childToken.TokenID),
-                    (TreePluginEventType.WillRecovery, parentToken.TokenID),
-                    (TreePluginEventType.Recoveryed, childToken.TokenID),
-                    (TreePluginEventType.Recoveryed, parentToken.TokenID),
+                    (TreePluginEventType.Created, parentTokenID),
+                    (TreePluginEventType.Created, childTokenID),
+                    (TreePluginEventType.WillRecovery, childTokenID),
+                    (TreePluginEventType.WillRecovery, parentTokenID),
+                    (TreePluginEventType.Recovered, childTokenID),
+                    (TreePluginEventType.Recovered, parentTokenID),
                 };
 
                 CollectionAssert.AreEqual(expected, plugin.Events);
 
                 Assert.That(provider.RecoveryCount, Is.EqualTo(2));
                 Assert.That(canvasProvider.RegisteredIds.Count, Is.EqualTo(0));
-                GC.KeepAlive(childToken);
+
+                // A child recovered as part of its parent's tree is no longer usable.
+                // Its token must observe the same lifetime as its node and UI instance.
+                Assert.That(parentToken.IsDisposed, Is.True);
+                Assert.That(childToken.IsDisposed, Is.True);
+                Assert.Throws<ControlTokenDisposedException>(() => _ = childToken.UI);
+                Assert.DoesNotThrow(() => childToken.Dispose());
             }
             finally
             {
-                manager.DisposeAsync().GetAwaiter().GetResult();
+                manager.Dispose();
+            }
+        }
+
+        [Test]
+        public void DisposingParent_WhenChildRecoveryThrows_SiblingsAndParentStillRecover()
+        {
+            var provider = new FakeUIElementProvider();
+            var canvasProvider = new FakeCanvasProvider();
+            var plugin = new ThrowingRecoveryPlugin();
+            var manager = new TestableUIManager(provider, canvasProvider, new IPlugin<DummyUI, DummyContainer, object>[] { plugin }, DummyLogger.Create());
+
+            var recoveryErrors = new List<RecoveryErrorInfo>();
+            manager.OnRecoveryError += recoveryErrors.Add;
+
+            try
+            {
+                var parentToken = manager.CreateWithSorting(name: "Parent").WaitResult();
+                var childASlot = DummySlot.Child(parentToken.UI);
+                var childAToken = manager.Create<DummyUI>(childASlot, name: "ChildA").WaitResult();
+                var childBSlot = DummySlot.Child(parentToken.UI);
+                var childBToken = manager.Create<DummyUI>(childBSlot, name: "ChildB").WaitResult();
+
+                plugin.ThrowForTokenID = childAToken.TokenID;
+
+                Assert.DoesNotThrow(() => parentToken.Dispose());
+
+                // Sibling and parent still finish recovery even though ChildA's handler threw.
+                CollectionAssert.Contains(plugin.RecoveredTokenIds, childBToken.TokenID);
+                CollectionAssert.Contains(plugin.RecoveredTokenIds, parentToken.TokenID);
+
+                // ChildA itself is not left stuck either: AfterRecoverySelf still ran for it
+                // (proven by it also being counted as recovered / returned to the pool), so
+                // NodeManager does not retain a permanently orphaned node for it.
+                CollectionAssert.Contains(plugin.RecoveredTokenIds, childAToken.TokenID);
+                Assert.That(provider.RecoveryCount, Is.EqualTo(3));
+
+                Assert.That(canvasProvider.RegisteredIds.Count, Is.EqualTo(0));
+
+                // The error payload carries enough node info (token id, name, phase) to debug which UI failed.
+                Assert.That(recoveryErrors.Count, Is.EqualTo(1));
+                Assert.That(recoveryErrors[0].TokenID, Is.EqualTo(childAToken.TokenID));
+                Assert.That(recoveryErrors[0].NodeName, Does.Contain("ChildA"));
+                Assert.That(recoveryErrors[0].Phase, Is.EqualTo(RecoveryPhase.BeforeRecovery));
+                Assert.That(recoveryErrors[0].Exception, Is.TypeOf<InvalidOperationException>());
+            }
+            finally
+            {
+                manager.Dispose();
             }
         }
 

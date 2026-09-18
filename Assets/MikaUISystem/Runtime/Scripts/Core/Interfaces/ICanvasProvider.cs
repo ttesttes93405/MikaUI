@@ -6,9 +6,8 @@ namespace MikaUISystem
     {
         public float DefaultScaleFactor { get; }
 
-        public void Registry(Guid id, int sortingOrder);
+        public void Register(Guid id, int sortingOrder);
 
-        public void Unregistry(Guid id);
-
+        public void Unregister(Guid id);
     }
 }

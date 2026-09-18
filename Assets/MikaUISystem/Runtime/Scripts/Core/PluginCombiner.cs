@@ -6,24 +6,24 @@ using MikaUISystem.Plugin;
 
 namespace MikaUISystem
 {
-    internal class PluginCombiner<TUI, TContainer> :
-        IPlugin<TUI, TContainer>,
-        IPluginUICreatedHandler<TUI, TContainer>,
+    internal class PluginCombiner<TUI, TContainer, TSlotConfig> :
+        IPlugin<TUI, TContainer, TSlotConfig>,
+        IPluginUICreatedHandler<TUI, TContainer, TSlotConfig>,
         IPluginUIWillRecoveryHandler<TUI, TContainer>,
-        IPluginUIRecoveryedHandler,
+        IPluginUIRecoveredHandler,
         IPluginVirtualUICreatedHandler
-        where TUI : class where TContainer : class
+        where TUI : class where TContainer : class where TSlotConfig : class
     {
 
 
-        readonly IPlugin<TUI, TContainer>[] plugins;
-        readonly IPlugin<TUI, TContainer>[] reversePlugins;
+        readonly IPlugin<TUI, TContainer, TSlotConfig>[] plugins;
+        readonly IPlugin<TUI, TContainer, TSlotConfig>[] reversePlugins;
 
         public int SortingOrder => 0;
 
-        public PluginCombiner(IEnumerable<IPlugin<TUI, TContainer>> plugins)
+        public PluginCombiner(IEnumerable<IPlugin<TUI, TContainer, TSlotConfig>> plugins)
         {
-            var orderedPlugins = (plugins ?? Enumerable.Empty<IPlugin<TUI, TContainer>>())
+            var orderedPlugins = (plugins ?? Enumerable.Empty<IPlugin<TUI, TContainer, TSlotConfig>>())
                 .OrderBy(p => p.SortingOrder)
                 .ToArray();
 
@@ -32,7 +32,7 @@ namespace MikaUISystem
         }
 
 
-        public void Install(UIManager<TUI, TContainer> manager)
+        public void Install(UIManager<TUI, TContainer, TSlotConfig> manager)
         {
             foreach (var plugin in plugins)
             {
@@ -40,16 +40,24 @@ namespace MikaUISystem
             }
         }
 
-        public void OnUICreated<T>(string name, UIControlToken<T, TContainer> token, TContainer container, IUI parentUI, SlotRectConfigs slotRectConfigs, TUI template) where T : IUI, TUI
+        public void Uninstall(UIManager<TUI, TContainer, TSlotConfig> manager)
+        {
+            foreach (var plugin in reversePlugins)
+            {
+                plugin.Uninstall(manager);
+            }
+        }
+
+        public void OnUICreated<T>(string name, UIControlToken<T, TContainer> token, TContainer container, IBaseUI parentUI, TSlotConfig slotRectConfigs, TUI template) where T : IVisualUI, TUI
         {
             foreach (var plugin in plugins)
             {
-                if (plugin is IPluginUICreatedHandler<TUI, TContainer> pluginUICreatedHandler)
+                if (plugin is IPluginUICreatedHandler<TUI, TContainer, TSlotConfig> pluginUICreatedHandler)
                     pluginUICreatedHandler.OnUICreated(name, token, container, parentUI, slotRectConfigs, template);
             }
         }
 
-        public void OnUIWillRecovery<T>(string name, UIControlToken<T, TContainer> token) where T : IUI, TUI
+        public void OnUIWillRecovery<T>(string name, UIControlToken<T, TContainer> token) where T : IVisualUI, TUI
         {
             foreach (var plugin in reversePlugins)
             {
@@ -58,17 +66,17 @@ namespace MikaUISystem
             }
         }
 
-        public void OnUIRecoveryed(string name, Guid tokenID) 
+        public void OnUIRecovered(string name, Guid tokenID)
         {
             foreach (var plugin in reversePlugins)
             {
-                if (plugin is IPluginUIRecoveryedHandler pluginUIRecoveryedHandler)
-                    pluginUIRecoveryedHandler.OnUIRecoveryed(name, tokenID);
+                if (plugin is IPluginUIRecoveredHandler pluginUIRecoveredHandler)
+                    pluginUIRecoveredHandler.OnUIRecovered(name, tokenID);
             }
         }
 
 
-        public void OnVirtualUICreated<T>(VirtualUIControlToken<T> token, IUI parentUI) where T : IVirtualUI, new()
+        public void OnVirtualUICreated<T>(UIControlToken<T> token, IBaseUI parentUI) where T : IVirtualUI, new()
         {
             foreach (var plugin in plugins)
             {

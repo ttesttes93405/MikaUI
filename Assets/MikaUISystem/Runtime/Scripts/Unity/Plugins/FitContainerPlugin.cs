@@ -1,19 +1,21 @@
 using System;
 using UnityEngine;
-using MikaUISystem.Plugin;
 
-namespace MikaUISystem
+namespace MikaUISystem.Plugin
 {
     public sealed class FitContainerPlugin :
-        IPlugin<MonoBehaviour, Transform>,
-        IPluginUICreatedHandler<MonoBehaviour, Transform>
+        IPlugin<MonoBehaviour, Transform, SlotRectConfigs>,
+        IPluginUICreatedHandler<MonoBehaviour, Transform, SlotRectConfigs>
     {
         public int SortingOrder => 1;
-        public void Install(UIManager<MonoBehaviour, Transform> manager)
+        public void Install(UIManager<MonoBehaviour, Transform, SlotRectConfigs> manager)
+        {
+        }
+        public void Uninstall(UIManager<MonoBehaviour, Transform, SlotRectConfigs> manager)
         {
         }
 
-        public void OnUICreated<T>(string name, UIControlToken<T, Transform> token, Transform container, IUI parentUI, SlotRectConfigs slotRectConfigs, MonoBehaviour template) where T : MonoBehaviour, IUI
+        public void OnUICreated<T>(string name, UIControlToken<T, Transform> token, Transform container, IBaseUI parentUI, SlotRectConfigs slotRectConfigs, MonoBehaviour template) where T : MonoBehaviour, IVisualUI
         {
             RectTransform templateRectTrans = template.GetComponent<RectTransform>();
 
@@ -26,11 +28,11 @@ namespace MikaUISystem
 
             SlotRectConfigs useSlotRectConfigs = slotRectConfigs ?? new SlotRectConfigs()
             {
-                AnchorMin = new(templateRectTrans.anchorMin.x, templateRectTrans.anchorMin.y),
-                AnchorMax = new(templateRectTrans.anchorMax.x, templateRectTrans.anchorMax.y),
-                Pivot = new(templateRectTrans.pivot.x, templateRectTrans.pivot.y),
-                SizeDelta = new(templateRectTrans.sizeDelta.x, templateRectTrans.sizeDelta.y),
-                AnchorPosition = new(templateRectTrans.anchoredPosition.x, templateRectTrans.anchoredPosition.y),
+                AnchorMin = templateRectTrans.anchorMin,
+                AnchorMax = templateRectTrans.anchorMax,
+                Pivot = templateRectTrans.pivot,
+                SizeDelta = templateRectTrans.sizeDelta,
+                AnchorPosition = templateRectTrans.anchoredPosition,
             };
             DoFitContainer(ui, useSlotRectConfigs);
 
@@ -43,14 +45,14 @@ namespace MikaUISystem
 
                 if (rootTrans is RectTransform rootRectTrans)
                 {
-                    rootRectTrans.anchorMin = new(slotRectConfigs.AnchorMin.X, slotRectConfigs.AnchorMin.Y);
-                    rootRectTrans.anchorMax = new(slotRectConfigs.AnchorMax.X, slotRectConfigs.AnchorMax.Y);
+                    rootRectTrans.anchorMin = slotRectConfigs.AnchorMin;
+                    rootRectTrans.anchorMax = slotRectConfigs.AnchorMax;
 
-                    rootRectTrans.pivot = new(slotRectConfigs.Pivot.X, slotRectConfigs.Pivot.Y);
+                    rootRectTrans.pivot = slotRectConfigs.Pivot;
 
-                    rootRectTrans.sizeDelta = new(slotRectConfigs.SizeDelta.X, slotRectConfigs.SizeDelta.Y);
+                    rootRectTrans.sizeDelta = slotRectConfigs.SizeDelta;
 
-                    rootRectTrans.anchoredPosition = new(slotRectConfigs.AnchorPosition.X, slotRectConfigs.AnchorPosition.Y);
+                    rootRectTrans.anchoredPosition = slotRectConfigs.AnchorPosition;
                 }
             }
         }

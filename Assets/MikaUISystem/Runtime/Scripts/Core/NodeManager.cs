@@ -8,6 +8,14 @@ using System.Text;
 namespace MikaUISystem
 {
 
+    internal enum NodeStatus
+    {
+        None,
+        Created,
+        BeforeRecovered,
+        Recovered,
+    }
+
     sealed record Node
     {
         public Guid TokenID { get; init; }
@@ -17,6 +25,7 @@ namespace MikaUISystem
         public NodeStatus Status { get; private set; }
         public Action BeforeRecoverySelf { get; init; }
         public Action AfterRecoverySelf { get; init; }
+        public Action OnRecoveryCompleted { get; init; }
 
         public Node(Guid tokenID, string name)
         {
@@ -48,7 +57,7 @@ namespace MikaUISystem
     {
         readonly HashSet<Guid> rootNodeIds = new();
         readonly Dictionary<Guid, Node> treeNodes = new();
-        readonly Dictionary<IVirtualUI, Node> uiToNode = new();
+        readonly Dictionary<IBaseUI, Node> uiToNode = new();
         readonly Logger logger;
 
         public NodeManager(Logger logger)
@@ -56,7 +65,7 @@ namespace MikaUISystem
             this.logger = logger;
         }
 
-        public void AttachNode(IVirtualUI parentUI, Node node, IVirtualUI ui)
+        public void AttachNode(IBaseUI parentUI, Node node, IBaseUI ui)
         {
             if (parentUI == null)
             {
@@ -71,13 +80,13 @@ namespace MikaUISystem
             AttachNode(parentNode, node, ui);
         }
 
-        void AttachNode(Node parentNode, Node node, IVirtualUI ui)
+        void AttachNode(Node parentNode, Node node, IBaseUI ui)
         {
             uiToNode.Add(ui, node);
             AttachNode(parentNode, node);
         }
 
-        public void AttachNode(IVirtualUI parentUI, Node node)
+        public void AttachNode(IBaseUI parentUI, Node node)
         {
             if (parentUI == null)
             {
@@ -125,7 +134,7 @@ namespace MikaUISystem
         }
 
 
-        public void DetachNode(Node node, IVirtualUI ui)
+        public void DetachNode(Node node, IBaseUI ui)
         {
             uiToNode.Remove(ui);
             DetachNode(node);
@@ -133,7 +142,7 @@ namespace MikaUISystem
 
         public void DetachNode(Node node)
         {
-            node.ChangeStatus(from: NodeStatus.BeforeRecoveryed, to: NodeStatus.Recoveryed);
+            node.ChangeStatus(from: NodeStatus.BeforeRecovered, to: NodeStatus.Recovered);
 
             if (node.ParentTokenID.HasValue && treeNodes.TryGetValue(node.ParentTokenID.Value, out var parentNode))
             {
