@@ -32,9 +32,11 @@ namespace MikaUI
         readonly NodeManager nodeManager;
         readonly PluginCombiner<TUI, TContainer, TSlotConfig> combinedPlugin;
         readonly Logger logger;
+        bool isDisposed;
 
         public event Action<RecoveryErrorInfo> OnRecoveryError;
         public event Action<UnexpectedDestructionInfo> OnUnexpectedDestruction;
+        public bool IsDisposed => isDisposed;
 
         public UIManager(IUIElementProvider<TUI, TContainer> uiElementProvider, IEnumerable<IPlugin<TUI, TContainer, TSlotConfig>> plugins, Logger logger)
         {
@@ -64,6 +66,8 @@ namespace MikaUI
 
         async MikaTask<UIControlToken<T, TContainer>> InternalCreate<T>(string name, TContainer container, IBaseUI parentUI, TSlotConfig slotRectConfigs) where T : class, TUI, IVisualUI
         {
+            ThrowIfDisposed();
+
             UIElement<TContainer> uiElement;
             try
             {
@@ -75,6 +79,8 @@ namespace MikaUI
                 throw;
             }
 
+            ThrowIfDisposed();
+
             if (uiElement == null)
             {
                 throw new NullReferenceException($"Cannot find UIElement: {typeof(T).Name}");
@@ -85,6 +91,12 @@ namespace MikaUI
             if (uiIns is T ui == false)
             {
                 throw new NullReferenceException($"Cannot create UI {typeof(T).Name}");
+            }
+
+            if (isDisposed)
+            {
+                RecoverUnmanagedElement(() => uiElement.Recovery(ui));
+                ThrowIfDisposed();
             }
 
             Node node = null;
@@ -158,11 +170,18 @@ namespace MikaUI
 
                 UICreated(token);
 
+                ThrowIfDisposed();
+
                 return token;
             }
             catch
             {
-                RollbackFailedCreation();
+                // Dispose can be called re-entrantly from a creation plugin. In
+                // that case it has already recovered this token and its subtree.
+                if (token.IsDisposed == false)
+                {
+                    RollbackFailedCreation();
+                }
                 throw;
             }
 
@@ -249,6 +268,33 @@ namespace MikaUI
             }
         }
 
+        void ThrowIfDisposed()
+        {
+            if (isDisposed)
+            {
+                throw new ObjectDisposedException(GetType().Name);
+            }
+        }
+
+        void RecoverUnmanagedElement(Action recovery)
+        {
+            try
+            {
+                recovery?.Invoke();
+            }
+            catch (Exception e)
+            {
+                try
+                {
+                    logger?.LogError?.Invoke(e);
+                }
+                catch
+                {
+                    // Disposal must still report the original lifecycle state.
+                }
+            }
+        }
+
         void ReportRecoveryError(RecoveryErrorInfo errorInfo)
         {
             try
@@ -287,6 +333,8 @@ namespace MikaUI
 
         async MikaTask<UIControlToken<T>> InternalCreateVirtual<T>(IBaseUI parentUI) where T : IVirtualUI, new()
         {
+            ThrowIfDisposed();
+
             VirtualUIElement virtualUIElement;
             try
             {
@@ -298,11 +346,19 @@ namespace MikaUI
                 throw;
             }
 
+            ThrowIfDisposed();
+
             (var virtualUI, var onCreated, var elementId) = await virtualUIElement.Create();
 
             if (virtualUI is T ui == false)
             {
                 throw new Exception($"Cannot create UI {typeof(T).Name}");
+            }
+
+            if (isDisposed)
+            {
+                RecoverUnmanagedElement(() => virtualUIElement.Recovery(ui));
+                ThrowIfDisposed();
             }
             UIControlToken<T> token = null;
             Node node = null;
@@ -347,11 +403,16 @@ namespace MikaUI
                 combinedPlugin.OnVirtualUICreated(token, parentUI);
                 onCreated?.Invoke();
 
+                ThrowIfDisposed();
+
                 return token;
             }
             catch
             {
-                RollbackFailedVirtualCreation();
+                if (token.IsDisposed == false)
+                {
+                    RollbackFailedVirtualCreation();
+                }
                 throw;
             }
 
@@ -409,7 +470,7 @@ namespace MikaUI
         /// </summary>
         public void HandleUnexpectedDestruction(UIControlToken token)
         {
-            if (token == null || token.IsDisposed)
+            if (isDisposed || token == null || token.IsDisposed)
             {
                 return;
             }
@@ -538,6 +599,15 @@ namespace MikaUI
 
         public virtual void Dispose()
         {
+            if (isDisposed)
+            {
+                return;
+            }
+
+            // Set this before recovering existing roots so an in-flight Create
+            // cannot attach a node after the manager has been shut down.
+            isDisposed = true;
+
             foreach (var node in nodeManager.GetRootNodes())
             {
                 UIFullTreeRecovery(node);

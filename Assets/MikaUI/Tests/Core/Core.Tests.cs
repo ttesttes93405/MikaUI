@@ -136,6 +136,90 @@ namespace Tests.Core
         }
 
         [Test]
+        public void Create_WhenManagerIsDisposedDuringLookup_DoesNotCreateAnElement()
+        {
+            var provider = new DeferredUIElementProvider();
+            var manager = new TestableUIManager(provider, new FakeCanvasProvider(), Array.Empty<IPlugin<DummyUI, DummyContainer, object>>(), DummyLogger.Create());
+
+            try
+            {
+                var createTask = manager.Create<DummyUI>(DummySlot.Root());
+
+                manager.Dispose();
+                provider.LookupSource.SetResult(provider.CreateElement());
+
+                var exception = Assert.Throws<AggregateException>(() => createTask.WaitResult());
+                Assert.That(exception.InnerExceptions[0], Is.TypeOf<ObjectDisposedException>());
+                Assert.That(provider.CreateInvocationCount, Is.EqualTo(0));
+                Assert.That(provider.RecoveryCount, Is.EqualTo(0));
+            }
+            finally
+            {
+                manager.Dispose();
+            }
+        }
+
+        [Test]
+        public void Create_WhenManagerIsDisposedDuringElementCreation_RecoversTheElement()
+        {
+            var provider = new DeferredUIElementProvider();
+            provider.LookupSource.SetResult(provider.CreateElement());
+            var manager = new TestableUIManager(provider, new FakeCanvasProvider(), Array.Empty<IPlugin<DummyUI, DummyContainer, object>>(), DummyLogger.Create());
+
+            try
+            {
+                var createTask = manager.Create<DummyUI>(DummySlot.Root());
+                Assert.That(provider.CreateInvocationCount, Is.EqualTo(1));
+
+                manager.Dispose();
+                provider.CreateSource.SetResult((new DummyUI(), null, Guid.NewGuid()));
+
+                var exception = Assert.Throws<AggregateException>(() => createTask.WaitResult());
+                Assert.That(exception.InnerExceptions[0], Is.TypeOf<ObjectDisposedException>());
+                Assert.That(provider.RecoveryCount, Is.EqualTo(1));
+            }
+            finally
+            {
+                manager.Dispose();
+            }
+        }
+
+        [Test]
+        public void Create_WhenPluginDisposesManager_DoesNotReturnAnAlreadyDisposedToken()
+        {
+            var provider = new FakeUIElementProvider();
+            var plugin = new DisposingCreatePlugin();
+            var manager = new TestableUIManager(provider, new FakeCanvasProvider(), new IPlugin<DummyUI, DummyContainer, object>[] { plugin }, DummyLogger.Create());
+
+            try
+            {
+                var exception = Assert.Throws<AggregateException>(() => manager.Create<DummyUI>(DummySlot.Root()).WaitResult());
+
+                Assert.That(exception.InnerExceptions[0], Is.TypeOf<ObjectDisposedException>());
+                Assert.That(provider.RecoveryCount, Is.EqualTo(1));
+                Assert.That(manager.IsDisposed, Is.True);
+            }
+            finally
+            {
+                manager.Dispose();
+            }
+        }
+
+        [Test]
+        public void Dispose_IsIdempotent_AndFutureCreatesFail()
+        {
+            var provider = new FakeUIElementProvider();
+            var manager = new TestableUIManager(provider, new FakeCanvasProvider(), Array.Empty<IPlugin<DummyUI, DummyContainer, object>>(), DummyLogger.Create());
+
+            Assert.DoesNotThrow(() => manager.Dispose());
+            Assert.DoesNotThrow(() => manager.Dispose());
+
+            var exception = Assert.Throws<AggregateException>(() => manager.Create<DummyUI>(DummySlot.Root()).WaitResult());
+            Assert.That(exception.InnerExceptions[0], Is.TypeOf<ObjectDisposedException>());
+            Assert.That(provider.CreatedInstances, Is.Empty);
+        }
+
+        [Test]
         public void CreateVirtual_WhenProviderLookupFails_LogsAndPropagatesException()
         {
             var expectedException = new InvalidOperationException("Simulated virtual UI lookup failure.");

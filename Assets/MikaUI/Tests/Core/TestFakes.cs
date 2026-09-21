@@ -126,6 +126,39 @@ namespace Tests.Core
         }
     }
 
+    internal sealed class DeferredUIElementProvider : IUIElementProvider<DummyUI, DummyContainer>
+    {
+        public TaskCompletionSource<UIElement<DummyContainer>> LookupSource { get; } = new();
+        public TaskCompletionSource<(IVisualUI ui, Action onCreated, Guid elementID)> CreateSource { get; } = new();
+        public int CreateInvocationCount { get; private set; }
+        public int RecoveryCount { get; private set; }
+
+        public MikaTask<UIElement<DummyContainer>> GetUIElement<T>(string name) where T : DummyUI, IVisualUI
+        {
+            return new MikaTask<UIElement<DummyContainer>>(LookupSource.Task);
+        }
+
+        public UIElement<DummyContainer> CreateElement()
+        {
+            return new UIElement<DummyContainer>
+            {
+                UIName = "TestUI",
+                GetTemplate = () => new DummyUI(),
+                Create = _ =>
+                {
+                    CreateInvocationCount++;
+                    return new MikaTask<(IVisualUI ui, Action onCreated, Guid elementID)>(CreateSource.Task);
+                },
+                Recovery = _ => RecoveryCount++,
+            };
+        }
+
+        public VirtualUIElement GetVirtualUIElement<T>() where T : IVirtualUI, new()
+        {
+            throw new NotSupportedException();
+        }
+    }
+
 
     public enum EventType
     {
@@ -313,6 +346,30 @@ namespace Tests.Core
         public void OnVirtualUICreated<T>(UIControlToken<T> token, IBaseUI parentUI) where T : IVirtualUI, new()
         {
             throw new InvalidOperationException("Simulated virtual plugin failure.");
+        }
+    }
+
+    internal sealed class DisposingCreatePlugin :
+        IPlugin<DummyUI, DummyContainer, object>,
+        IPluginUICreatedHandler<DummyUI, DummyContainer, object>
+    {
+        UIManager<DummyUI, DummyContainer, object> manager;
+
+        public int SortingOrder => 0;
+
+        public void Install(UIManager<DummyUI, DummyContainer, object> manager)
+        {
+            this.manager = manager;
+        }
+
+        public void Uninstall(UIManager<DummyUI, DummyContainer, object> manager)
+        {
+            this.manager = null;
+        }
+
+        public void OnUICreated<T>(string name, UIControlToken<T, DummyContainer> token, DummyContainer container, IBaseUI parentUI, object slotRectConfigs, DummyUI template) where T : DummyUI, IVisualUI
+        {
+            manager.Dispose();
         }
     }
 
