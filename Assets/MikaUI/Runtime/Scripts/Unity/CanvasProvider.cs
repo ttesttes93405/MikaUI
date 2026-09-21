@@ -8,15 +8,16 @@ namespace MikaUI
     public class CanvasProvider : ICanvasProvider
     {
 
-        readonly Transform root;
+        readonly RectTransform root;
         readonly Canvas canvasTemplate;
         readonly Dictionary<int, Canvas> pool = new();
         readonly Dictionary<int, HashSet<Guid>> canvasUsingRegistry = new();
 
 
         public float DefaultScaleFactor => canvasTemplate.scaleFactor;
+        public RectTransform Root => root;
 
-        internal CanvasProvider(RectTransform root, Canvas canvasTemplate)
+        public CanvasProvider(RectTransform root, Canvas canvasTemplate)
         {
             this.root = root;
             this.canvasTemplate = canvasTemplate;
@@ -97,6 +98,22 @@ namespace MikaUI
             if (pool.TryGetValue(sortingOrder, out var canvas))
             {
                 RecoverCanvas(canvas);
+            }
+        }
+
+        /// <summary>
+        /// Recovers every pooled canvas without active UI registrations. This is
+        /// called by the unexpected-destruction runner after Unity has completed
+        /// its OnDestroy phase, when changing Canvas hierarchy state is safe.
+        /// </summary>
+        internal void RecoverUnusedCanvases()
+        {
+            foreach (var (sortingOrder, uis) in canvasUsingRegistry)
+            {
+                if (uis.Count == 0 && pool.TryGetValue(sortingOrder, out var canvas))
+                {
+                    RecoverCanvas(canvas);
+                }
             }
         }
 

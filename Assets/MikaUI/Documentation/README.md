@@ -121,13 +121,12 @@ Example:
 
 ```csharp
 var uiElementProvider = new DefaultUIElementProvider(uiElementSource.GetSources(), poolRoot);
-var plugins = MikaUI.Plugin.PluginCreator.Create();
 
-var uiManager = new UIManager(
+var uiManager = new UnityUIManager(
     uiElementProvider,
     canvasRoot,
     canvasTemplate,
-    plugins
+    plugins: null
 );
 ```
 

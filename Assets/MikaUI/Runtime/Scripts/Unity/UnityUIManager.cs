@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 using UnityEngine;
 using MikaUI.Plugin;
@@ -10,7 +11,7 @@ namespace MikaUI
 
     public sealed class UnityUIManager : MikaUI.UIManager<MonoBehaviour, Transform, SlotRectConfigs>
     {
-        public CanvasProvider CanvasProvider { get; private set; }
+        public CanvasProvider CanvasProvider { get; }
 
 
 
@@ -20,16 +21,49 @@ namespace MikaUI
             Canvas canvasTemplate,
             IEnumerable<IPlugin<MonoBehaviour, Transform, SlotRectConfigs>> plugins,
             Logger logger = null
-            ) : base(
+            ) : this(
                 uiElementProvider,
-                canvasRoot,
+                new CanvasProvider(canvasRoot, canvasTemplate),
                 plugins,
                 logger)
+        { }
+
+        public UnityUIManager(
+            IUIElementProvider<MonoBehaviour, Transform> uiElementProvider,
+            CanvasProvider canvasProvider,
+            IEnumerable<IPlugin<MonoBehaviour, Transform, SlotRectConfigs>> plugins,
+            Logger logger = null
+            ) : base(
+                uiElementProvider,
+                GetRoot(canvasProvider),
+                ResolvePlugins(canvasProvider, plugins),
+                logger)
         {
-            CanvasProvider = new CanvasProvider(canvasRoot, canvasTemplate);
+            CanvasProvider = canvasProvider;
 
             Application.quitting += Dispose;
-            OnUnexpectedDestruction += HandleUnexpectedDestruction;
+        }
+
+        static IPlugin<MonoBehaviour, Transform, SlotRectConfigs>[] ResolvePlugins(
+            CanvasProvider canvasProvider,
+            IEnumerable<IPlugin<MonoBehaviour, Transform, SlotRectConfigs>> plugins)
+        {
+            if (canvasProvider == null)
+            {
+                throw new ArgumentNullException(nameof(canvasProvider));
+            }
+
+            return (plugins ?? PluginCreator.Create(canvasProvider)).ToArray();
+        }
+
+        static RectTransform GetRoot(CanvasProvider canvasProvider)
+        {
+            if (canvasProvider == null)
+            {
+                throw new ArgumentNullException(nameof(canvasProvider));
+            }
+
+            return canvasProvider.Root;
         }
 
 
@@ -44,7 +78,7 @@ namespace MikaUI
                 new DefaultUIElementProvider(uIElementSources, poolRoot),
                 canvasRoot,
                 canvasTemplate,
-                plugins ?? PluginCreator.Create(),
+                plugins,
                 logger)
         { }
 
@@ -93,12 +127,6 @@ namespace MikaUI
             base.Dispose();
 
             Application.quitting -= Dispose;
-            OnUnexpectedDestruction -= HandleUnexpectedDestruction;
-        }
-
-        void HandleUnexpectedDestruction(UnexpectedDestructionInfo info)
-        {
-            CanvasProvider.UnregisterWithoutRecovery(info.TokenID);
         }
 
     }

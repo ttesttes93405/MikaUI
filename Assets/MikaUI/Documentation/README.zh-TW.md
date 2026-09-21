@@ -122,13 +122,12 @@ UI instance 應該透過 `UIManager` 建立，而不是讓不同 script 任意�
 
 ```csharp
 var uiElementProvider = new DefaultUIElementProvider(uiElementSource.GetSources(), poolRoot);
-var plugins = MikaUI.Plugin.PluginCreator.Create();
 
-var uiManager = new UIManager(
+var uiManager = new UnityUIManager(
     uiElementProvider,
     canvasRoot,
     canvasTemplate,
-    plugins
+    plugins: null
 );
 ```
 

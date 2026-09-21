@@ -25,6 +25,7 @@ namespace Tests.Unity
 
             var parentToken = CreateRoot();
             var parentUI = parentToken.UI;
+            var canvas = parentUI.transform.parent.GetComponent<Canvas>();
             var parentElementId = parentToken.ElementID;
             var childToken = CreateChild(parentToken);
             var childUI = childToken.UI;
@@ -38,6 +39,8 @@ namespace Tests.Unity
             Assert.That(parentToken.IsDisposed, Is.True);
             Assert.That(childToken.IsDisposed, Is.True);
             Assert.That(ReusableTestUI.CleanupCount, Is.EqualTo(0));
+            Assert.That(canvas.enabled, Is.False);
+            Assert.That(canvas.gameObject.activeSelf, Is.False);
 
             var replacementToken = CreateRoot();
             Assert.That(replacementToken.UI == null, Is.False);
@@ -120,14 +123,15 @@ namespace Tests.Unity
             uiTemplateObject = new GameObject("Reusable UI Template", typeof(RectTransform), typeof(ReusableTestUI));
 
             var source = new TestUIElementSource("", uiTemplateObject.GetComponent<ReusableTestUI>());
-            manager = new UnityUIManager(
-                new[] { source },
-                poolRootObject.transform,
+            var canvasProvider = new CanvasProvider(
                 canvasRootObject.GetComponent<RectTransform>(),
-                canvasTemplateObject.GetComponent<Canvas>(),
+                canvasTemplateObject.GetComponent<Canvas>());
+            manager = new UnityUIManager(
+                new DefaultUIElementProvider(new[] { source }, poolRootObject.transform),
+                canvasProvider,
                 new IPlugin<MonoBehaviour, Transform, SlotRectConfigs>[]
                 {
-                    new DestroyDetectPlugin(_ => { }),
+                    new DestroyDetectPlugin(canvasProvider, _ => { }),
                 });
         }
 

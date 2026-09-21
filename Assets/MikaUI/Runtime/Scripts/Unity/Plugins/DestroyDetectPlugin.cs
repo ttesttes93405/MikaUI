@@ -21,12 +21,14 @@ namespace MikaUI.Plugin
         readonly Dictionary<Guid, Action> unsubscribeDetects = new();
         readonly Queue<UIControlToken> unexpectedDestructionTokens = new();
         readonly HashSet<Guid> queuedTokenIds = new();
+        readonly CanvasProvider canvasProvider;
         UnexpectedDestructionRunner runner;
         Coroutine processing;
         bool isUninstalled;
 
-        public DestroyDetectPlugin(Action<UIControlToken> onUIDestroyAction)
+        public DestroyDetectPlugin(CanvasProvider canvasProvider, Action<UIControlToken> onUIDestroyAction)
         {
+            this.canvasProvider = canvasProvider ?? throw new ArgumentNullException(nameof(canvasProvider));
             this.onUIDestroyAction = onUIDestroyAction;
         }
 
@@ -77,6 +79,9 @@ namespace MikaUI.Plugin
                         }
                         finally
                         {
+                            // This runs from OnDestroy, so unregister bookkeeping
+                            // only; the runner deactivates an empty Canvas next frame.
+                            canvasProvider?.UnregisterWithoutRecovery(token.TokenID);
                             EnqueueUnexpectedDestruction(token);
                         }
                     })
@@ -137,6 +142,12 @@ namespace MikaUI.Plugin
                         catch (Exception e)
                         {
                             Debug.LogException(e);
+                        }
+                        finally
+                        {
+                            // The OnDestroy phase has completed, so hierarchy changes
+                            // are safe. This also covers the last UI on a Canvas.
+                            canvasProvider?.RecoverUnusedCanvases();
                         }
                     }
                 }

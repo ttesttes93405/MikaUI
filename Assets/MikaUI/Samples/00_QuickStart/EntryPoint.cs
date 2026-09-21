@@ -35,13 +35,12 @@ public class EntryPoint : MonoBehaviour
     UnityUIManager CreateMikaUIManager()
     {
         var uiElementProvider = new DefaultUIElementProvider(uiElementSource.GetSources(), poolRoot);
-        var plugins = MikaUI.Plugin.PluginCreator.Create();
 
         var mikaUIManager = new UnityUIManager(
             uiElementProvider,
             canvasRoot,
             canvasTemplate,
-            plugins
+            plugins: null
         );
 
         return mikaUIManager;
