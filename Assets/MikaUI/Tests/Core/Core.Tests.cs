@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using NUnit.Framework;
 using MikaUI;
 using MikaUI.Plugin;
@@ -10,6 +12,36 @@ namespace Tests.Core
 
     public class CoreTests
     {
+        [Test]
+        public void MikaTask_Await_PropagatesFault()
+        {
+            var expectedException = new InvalidOperationException("Simulated MikaTask failure.");
+            var task = new MikaTask(Task.FromException(expectedException));
+
+            var exception = Assert.ThrowsAsync<InvalidOperationException>(async () => await task);
+
+            Assert.That(exception, Is.SameAs(expectedException));
+        }
+
+        [Test]
+        public void MikaTask_Await_PropagatesCancellation()
+        {
+            var task = new MikaTask(Task.FromCanceled(new CancellationToken(canceled: true)));
+
+            Assert.ThrowsAsync<TaskCanceledException>(async () => await task);
+        }
+
+        [Test]
+        public void MikaTaskOfT_FromTask_PropagatesFault()
+        {
+            var expectedException = new InvalidOperationException("Simulated MikaTask<T> failure.");
+            var task = new MikaTask<int>(Task.FromException(expectedException));
+
+            var exception = Assert.ThrowsAsync<InvalidOperationException>(async () => await task);
+
+            Assert.That(exception, Is.SameAs(expectedException));
+        }
+
         [Test]
         public void CreateWithSorting_DisposesUiAndUnregistersCanvas()
         {

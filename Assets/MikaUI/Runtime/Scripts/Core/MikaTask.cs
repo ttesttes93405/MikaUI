@@ -57,7 +57,10 @@ namespace MikaUI
             _taskAwaiter.OnCompleted(continuation);
         }
 
-        public void GetResult() { }
+        public void GetResult()
+        {
+            _taskAwaiter.GetResult();
+        }
     }
 
 
@@ -73,7 +76,13 @@ namespace MikaUI
 
         public MikaTask(Task task)
         {
-            _task = task.ContinueWith(t => default(T));
+            _task = ToResultTask(task);
+        }
+
+        static async Task<T> ToResultTask(Task task)
+        {
+            await task;
+            return default;
         }
 
         public MikaAwaiter<T> GetAwaiter()
