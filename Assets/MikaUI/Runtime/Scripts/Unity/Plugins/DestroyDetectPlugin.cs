@@ -22,9 +22,11 @@ namespace MikaUI.Plugin
         readonly Queue<UIControlToken> unexpectedDestructionTokens = new();
         readonly HashSet<Guid> queuedTokenIds = new();
         readonly CanvasProvider canvasProvider;
+        Action unsubscribeRootContainerDestroy;
         UnexpectedDestructionRunner runner;
         Coroutine processing;
         bool isUninstalled;
+        bool isRootContainerDestroyed;
 
         public DestroyDetectPlugin(CanvasProvider canvasProvider, Action<UIControlToken> onUIDestroyAction)
         {
@@ -37,6 +39,12 @@ namespace MikaUI.Plugin
             this.manager = manager ?? throw new ArgumentNullException(nameof(manager));
             managerHashCode = manager.GetHashCode();
             isUninstalled = false;
+            isRootContainerDestroyed = false;
+
+            unsubscribeRootContainerDestroy = GameObjectDestroyListener.AttachTo(
+                managerHashCode,
+                manager.RootContainer.gameObject,
+                OnRootContainerDestroyed);
 
             var runnerObject = new GameObject("[MikaUI] Destroy Detection Runner");
             runnerObject.transform.SetParent(manager.RootContainer, false);
@@ -45,6 +53,9 @@ namespace MikaUI.Plugin
 
         public void Uninstall(UIManager<MonoBehaviour, Transform, SlotRectConfigs> manager)
         {
+            unsubscribeRootContainerDestroy?.Invoke();
+            unsubscribeRootContainerDestroy = null;
+
             foreach (var unsubscribe in unsubscribeDetects.Values)
             {
                 unsubscribe?.Invoke();
@@ -52,6 +63,7 @@ namespace MikaUI.Plugin
             unsubscribeDetects.Clear();
 
             isUninstalled = true;
+            isRootContainerDestroyed = false;
             unexpectedDestructionTokens.Clear();
             queuedTokenIds.Clear();
             if (runner != null)
@@ -62,6 +74,23 @@ namespace MikaUI.Plugin
             }
             processing = null;
             this.manager = null;
+        }
+
+        void OnRootContainerDestroyed()
+        {
+            if (isUninstalled || manager == null || manager.IsDisposed)
+            {
+                return;
+            }
+
+            // Child OnDestroy callbacks can run after this one while the runner is
+            // already inactive. This is an ownership violation, not a recoverable
+            // unexpected-destruction path, so do not start its coroutine.
+            isRootContainerDestroyed = true;
+
+            throw new InvalidOperationException(
+                "[MikaUI] RootContainer was destroyed before its UIManager was disposed. " +
+                "Call UIManager.Dispose() before destroying the RootContainer.");
         }
 
         public void OnUICreated<T>(string name, UIControlToken<T, Transform> token, Transform container, IBaseUI parentUI, SlotRectConfigs slotRectConfigs, MonoBehaviour template) where T : MonoBehaviour, IVisualUI
@@ -110,7 +139,7 @@ namespace MikaUI.Plugin
 
         void EnqueueUnexpectedDestruction(UIControlToken token)
         {
-            if (isUninstalled || token == null || token.IsDisposed || queuedTokenIds.Add(token.TokenID) == false)
+            if (isUninstalled || isRootContainerDestroyed || token == null || token.IsDisposed || queuedTokenIds.Add(token.TokenID) == false)
             {
                 return;
             }

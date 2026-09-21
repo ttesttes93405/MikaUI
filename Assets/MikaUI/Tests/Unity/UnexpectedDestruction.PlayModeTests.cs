@@ -1,5 +1,6 @@
 using System;
 using System.Collections;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using MikaUI;
 using MikaUI.Plugin;
@@ -96,6 +97,20 @@ namespace Tests.Unity
             Assert.That(replacementToken.ElementID, Is.EqualTo(childElementId));
 
             replacementToken.Dispose();
+        }
+
+        [UnityTest]
+        public IEnumerator DestroyingRootContainerBeforeManagerDispose_ReportsOwnershipViolation()
+        {
+            CreateManager();
+            CreateRoot();
+
+            LogAssert.Expect(
+                LogType.Exception,
+                new Regex("RootContainer was destroyed before its UIManager was disposed"));
+
+            UnityEngine.Object.Destroy(canvasRootObject);
+            yield return null;
         }
 
         [UnityTearDown]
