@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Threading.Tasks;
 using MikaUI;
 using MikaUI.Plugin;
 
@@ -64,15 +65,23 @@ namespace Tests.Core
         public int UnexpectedRecoveryCount { get; private set; }
         public int VirtualRecoveryCount { get; private set; }
         public bool ThrowOnVirtualCreated { get; set; }
+        public Exception GetUIElementException { get; set; }
+        public Exception GetVirtualUIElementException { get; set; }
 
-        public UIElement<DummyContainer> GetUIElement<T>(string name) where T : DummyUI, IVisualUI
+        public MikaTask<UIElement<DummyContainer>> GetUIElement<T>(string name) where T : DummyUI, IVisualUI
         {
-            if (typeof(T) != typeof(DummyUI))
+            if (GetUIElementException != null)
             {
-                return null;
+                return new MikaTask<UIElement<DummyContainer>>(
+                    Task.FromException<UIElement<DummyContainer>>(GetUIElementException));
             }
 
-            return new UIElement<DummyContainer>
+            if (typeof(T) != typeof(DummyUI))
+            {
+                return MikaTask<UIElement<DummyContainer>>.FromResult(null);
+            }
+
+            return MikaTask<UIElement<DummyContainer>>.FromResult(new UIElement<DummyContainer>
             {
                 UIName = "TestUI",
                 GetTemplate = () => new DummyUI(),
@@ -86,11 +95,16 @@ namespace Tests.Core
                 },
                 Recovery = ui => { RecoveryCount++; },
                 UnexpectedRecovery = ui => { UnexpectedRecoveryCount++; },
-            };
+            });
         }
 
         public VirtualUIElement GetVirtualUIElement<T>() where T : IVirtualUI, new()
         {
+            if (GetVirtualUIElementException != null)
+            {
+                throw GetVirtualUIElementException;
+            }
+
             return new VirtualUIElement
             {
                 UIName = typeof(T).Name,
@@ -202,9 +216,9 @@ namespace Tests.Core
 
     internal sealed class NullUIElementProvider : IUIElementProvider<DummyUI, DummyContainer>
     {
-        public UIElement<DummyContainer> GetUIElement<T>(string name) where T : DummyUI, IVisualUI
+        public MikaTask<UIElement<DummyContainer>> GetUIElement<T>(string name) where T : DummyUI, IVisualUI
         {
-            return null;
+            return MikaTask<UIElement<DummyContainer>>.FromResult(null);
         }
 
         public VirtualUIElement GetVirtualUIElement<T>() where T : IVirtualUI, new()

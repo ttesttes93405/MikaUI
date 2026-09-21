@@ -64,7 +64,16 @@ namespace MikaUI
 
         async MikaTask<UIControlToken<T, TContainer>> InternalCreate<T>(string name, TContainer container, IBaseUI parentUI, TSlotConfig slotRectConfigs) where T : class, TUI, IVisualUI
         {
-            var uiElement = uiElementProvider.GetUIElement<T>(name);
+            UIElement<TContainer> uiElement;
+            try
+            {
+                uiElement = await uiElementProvider.GetUIElement<T>(name);
+            }
+            catch (Exception e)
+            {
+                logger?.LogError?.Invoke(e);
+                throw;
+            }
 
             if (uiElement == null)
             {
@@ -278,7 +287,17 @@ namespace MikaUI
 
         async MikaTask<UIControlToken<T>> InternalCreateVirtual<T>(IBaseUI parentUI) where T : IVirtualUI, new()
         {
-            var virtualUIElement = uiElementProvider.GetVirtualUIElement<T>();
+            VirtualUIElement virtualUIElement;
+            try
+            {
+                virtualUIElement = uiElementProvider.GetVirtualUIElement<T>();
+            }
+            catch (Exception e)
+            {
+                logger?.LogError?.Invoke(e);
+                throw;
+            }
+
             (var virtualUI, var onCreated, var elementId) = await virtualUIElement.Create();
 
             if (virtualUI is T ui == false)

@@ -24,10 +24,11 @@ namespace MikaUI
 
 
         List<UIElement<Transform>> uiElementList = null;
-        public UIElement<Transform> GetUIElement<T>(string name) where T : MonoBehaviour, IVisualUI
+        public MikaTask<UIElement<Transform>> GetUIElement<T>(string name) where T : MonoBehaviour, IVisualUI
         {
             uiElementList ??= GetUIElements(poolRoot);
-            return uiElementList.FirstOrDefault(p => p.GetTemplate().GetType() == typeof(T) && p.UIName == name);
+            UIElement<Transform> result = uiElementList.FirstOrDefault(p => p.GetTemplate().GetType() == typeof(T) && p.UIName == name);
+            return MikaTask<UIElement<Transform>>.FromResult(result);
 
 
             List<UIElement<Transform>> GetUIElements(Transform poolRoot)

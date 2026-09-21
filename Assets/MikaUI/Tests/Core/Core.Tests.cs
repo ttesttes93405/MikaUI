@@ -112,6 +112,54 @@ namespace Tests.Core
         }
 
         [Test]
+        public void Create_WhenProviderLookupFails_LogsAndPropagatesException()
+        {
+            var expectedException = new InvalidOperationException("Simulated UI lookup failure.");
+            var provider = new FakeUIElementProvider { GetUIElementException = expectedException };
+            var loggedErrors = new List<object>();
+            var logger = new Logger { LogError = loggedErrors.Add };
+            var manager = new TestableUIManager(provider, new FakeCanvasProvider(), Array.Empty<IPlugin<DummyUI, DummyContainer, object>>(), logger);
+
+            try
+            {
+                var exception = Assert.Throws<AggregateException>(() => manager.Create<DummyUI>(DummySlot.Root()).WaitResult());
+
+                Assert.That(exception.InnerExceptions, Has.Count.EqualTo(1));
+                Assert.That(exception.InnerExceptions[0], Is.SameAs(expectedException));
+                Assert.That(loggedErrors, Has.Count.EqualTo(1));
+                Assert.That(loggedErrors[0], Is.SameAs(expectedException));
+            }
+            finally
+            {
+                manager.Dispose();
+            }
+        }
+
+        [Test]
+        public void CreateVirtual_WhenProviderLookupFails_LogsAndPropagatesException()
+        {
+            var expectedException = new InvalidOperationException("Simulated virtual UI lookup failure.");
+            var provider = new FakeUIElementProvider { GetVirtualUIElementException = expectedException };
+            var loggedErrors = new List<object>();
+            var logger = new Logger { LogError = loggedErrors.Add };
+            var manager = new TestableUIManager(provider, new FakeCanvasProvider(), Array.Empty<IPlugin<DummyUI, DummyContainer, object>>(), logger);
+
+            try
+            {
+                var exception = Assert.Throws<AggregateException>(() => manager.CreateVirtual<DummyVirtualUI>().WaitResult());
+
+                Assert.That(exception.InnerExceptions, Has.Count.EqualTo(1));
+                Assert.That(exception.InnerExceptions[0], Is.SameAs(expectedException));
+                Assert.That(loggedErrors, Has.Count.EqualTo(1));
+                Assert.That(loggedErrors[0], Is.SameAs(expectedException));
+            }
+            finally
+            {
+                manager.Dispose();
+            }
+        }
+
+        [Test]
         public void Create_WhenCreatedPluginThrows_RollsBackTheNodeAndElement()
         {
             var provider = new FakeUIElementProvider();
