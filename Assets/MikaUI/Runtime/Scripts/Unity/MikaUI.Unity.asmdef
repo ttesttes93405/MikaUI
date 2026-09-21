@@ -1,0 +1,16 @@
+{
+    "name": "MikaUI.Unity",
+    "rootNamespace": "",
+    "references": [
+        "GUID:532e88dfcd23e5d42afabf4ee9380384"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}
