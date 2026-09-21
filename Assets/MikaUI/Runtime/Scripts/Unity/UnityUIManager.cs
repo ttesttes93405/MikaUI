@@ -29,6 +29,7 @@ namespace MikaUI
             CanvasProvider = new CanvasProvider(canvasRoot, canvasTemplate);
 
             Application.quitting += Dispose;
+            OnUnexpectedDestruction += HandleUnexpectedDestruction;
         }
 
 
@@ -92,6 +93,12 @@ namespace MikaUI
             base.Dispose();
 
             Application.quitting -= Dispose;
+            OnUnexpectedDestruction -= HandleUnexpectedDestruction;
+        }
+
+        void HandleUnexpectedDestruction(UnexpectedDestructionInfo info)
+        {
+            CanvasProvider.UnregisterWithoutRecovery(info.TokenID);
         }
 
     }

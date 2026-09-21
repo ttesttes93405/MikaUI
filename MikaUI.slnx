@@ -19,6 +19,7 @@
   <Project Path="Unity.TextMeshPro.csproj" />
   <Project Path="Unity.VisualScripting.SettingsProvider.Editor.csproj" />
   <Project Path="MikaUI.Unity.csproj" />
+  <Project Path="MikaUI.Tests.Unity.csproj" />
   <Project Path="Unity.Multiplayer.Center.Common.csproj" />
   <Project Path="MikaUI.QuickStart.csproj" />
   <Project Path="Unity.CollabProxy.Editor.csproj" />

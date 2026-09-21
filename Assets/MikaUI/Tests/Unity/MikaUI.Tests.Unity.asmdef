@@ -1,0 +1,20 @@
+{
+    "name": "MikaUI.Tests.Unity",
+    "rootNamespace": "",
+    "references": [
+        "MikaUI.Unity",
+        "MikaUI.Core"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": false,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "optionalUnityReferences": [
+        "TestAssemblies"
+    ],
+    "noEngineReferences": false
+}

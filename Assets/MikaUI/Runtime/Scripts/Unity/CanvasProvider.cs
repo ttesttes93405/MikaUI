@@ -102,17 +102,32 @@ namespace MikaUI
 
         public void Unregister(Guid id)
         {
+            Unregister(id, recoverCanvas: true);
+        }
+
+        /// <summary>
+        /// Removes an unexpectedly destroyed UI from the registry without changing
+        /// Canvas state. This is used from a GameObject's OnDestroy callback, where
+        /// disabling an ancestor Canvas would mutate a hierarchy being destroyed.
+        /// </summary>
+        internal void UnregisterWithoutRecovery(Guid id)
+        {
+            Unregister(id, recoverCanvas: false);
+        }
+
+        void Unregister(Guid id, bool recoverCanvas)
+        {
             foreach (var (sortingOrder, uis) in canvasUsingRegistry)
             {
                 if (uis.Contains(id))
                 {
                     uis.Remove(id);
-                    if (uis.Count == 0)
+                    if (recoverCanvas && uis.Count == 0)
                     {
                         var canvas = pool[sortingOrder];
                         RecoverCanvas(canvas);
                     }
-                    break;
+                    return;
                 }
             }
 
@@ -123,7 +138,6 @@ namespace MikaUI
             canvas.enabled = false;
             canvas.gameObject.SetActive(false);
         }
-
 
     }
 

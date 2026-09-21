@@ -132,32 +132,12 @@ namespace MikaUI
                     },
                     UnexpectedRecovery = (ui) =>
                     {
-                        if ((ui as MonoBehaviour) == null)
-                        {
-                            // Unity has already destroyed this object. It must never
-                            // be returned to the pool or accessed through Transform.
-                            uiCleaner.Remove(ui);
-                            uiIDMap.Remove(ui);
-                            return;
-                        }
-
-                        // A managed child can outlive a destroyed parent in the
-                        // Transform hierarchy. Its lifecycle still ends with the
-                        // parent, but it is safe to recover this surviving instance.
-                        if (ui is IUIEffectable reuseable)
-                        {
-                            if (uiCleaner.TryGetValue(ui, out var cleaner))
-                            {
-                                cleaner?.Invoke();
-                                uiCleaner.Remove(ui);
-                            }
-                            uiPool.Enqueue(ui);
-                            (ui as MonoBehaviour).transform.SetParent(poolRoot, false);
-                        }
-                        else
-                        {
-                            UnityEngine.Object.Destroy((ui as MonoBehaviour).gameObject);
-                        }
+                        // This path runs from OnDestroy. A managed child is always
+                        // beneath its parent Transform, so Unity will destroy the
+                        // whole visual subtree. Only MikaUI bookkeeping is safe here:
+                        // never touch Transform, return to a pool, or destroy again.
+                        uiCleaner.Remove(ui);
+                        uiIDMap.Remove(ui);
                     },
                 };
             }
