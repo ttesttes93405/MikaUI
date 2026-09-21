@@ -319,12 +319,47 @@ namespace MikaUI
                 OnRecoveryCompleted = token.CompleteDispose,
             };
 
-            nodeManager.AttachNode(parentUI, node, ui);
+            var nodeAttached = false;
+            try
+            {
+                nodeManager.AttachNode(parentUI, node, ui);
+                nodeAttached = true;
 
-            combinedPlugin.OnVirtualUICreated(token, parentUI);
-            onCreated?.Invoke();
+                combinedPlugin.OnVirtualUICreated(token, parentUI);
+                onCreated?.Invoke();
 
-            return token;
+                return token;
+            }
+            catch
+            {
+                RollbackFailedVirtualCreation();
+                throw;
+            }
+
+            // Keep virtual creation atomic for custom providers and plugins too.
+            // The caller never receives the token when an initialization hook fails,
+            // so this method must remove the node and release the virtual element.
+            void RollbackFailedVirtualCreation()
+            {
+                if (nodeAttached)
+                {
+                    RollbackableRun(
+                        () => node.BeforeRecoverySelf(),
+                        rollbackException => ReportRecoveryError(new RecoveryErrorInfo(token.TokenID, token.Name, RecoveryPhase.BeforeRecovery, rollbackException))
+                    );
+
+                    RollbackableRun(
+                        () => nodeManager.DetachNode(node, ui),
+                        rollbackException => ReportRecoveryError(new RecoveryErrorInfo(token.TokenID, token.Name, RecoveryPhase.AfterRecovery, rollbackException))
+                    );
+                }
+
+                RollbackableRun(
+                    () => virtualUIElement.Recovery(ui),
+                    rollbackException => ReportRecoveryError(new RecoveryErrorInfo(token.TokenID, token.Name, RecoveryPhase.AfterRecovery, rollbackException)),
+                    () => token.CompleteDispose()
+                );
+            }
 
 
 

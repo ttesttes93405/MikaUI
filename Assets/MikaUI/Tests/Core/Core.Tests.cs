@@ -168,6 +168,49 @@ namespace Tests.Core
         }
 
         [Test]
+        public void CreateVirtual_WhenCreatedPluginThrows_RollsBackTheNodeAndElement()
+        {
+            var provider = new FakeUIElementProvider();
+            var canvasProvider = new FakeCanvasProvider();
+            var plugin = new ThrowingVirtualCreatePlugin();
+            var manager = new TestableUIManager(provider, canvasProvider, new IPlugin<DummyUI, DummyContainer, object>[] { plugin }, DummyLogger.Create());
+
+            try
+            {
+                Assert.Throws<AggregateException>(() => manager.CreateVirtual<DummyVirtualUI>().WaitResult());
+                Assert.That(provider.VirtualRecoveryCount, Is.EqualTo(1));
+
+                manager.Dispose();
+                Assert.That(provider.VirtualRecoveryCount, Is.EqualTo(1));
+            }
+            finally
+            {
+                manager.Dispose();
+            }
+        }
+
+        [Test]
+        public void CreateVirtual_WhenOnCreatedThrows_RollsBackTheNodeAndElement()
+        {
+            var provider = new FakeUIElementProvider { ThrowOnVirtualCreated = true };
+            var canvasProvider = new FakeCanvasProvider();
+            var manager = new TestableUIManager(provider, canvasProvider, Array.Empty<IPlugin<DummyUI, DummyContainer, object>>(), DummyLogger.Create());
+
+            try
+            {
+                Assert.Throws<AggregateException>(() => manager.CreateVirtual<DummyVirtualUI>().WaitResult());
+                Assert.That(provider.VirtualRecoveryCount, Is.EqualTo(1));
+
+                manager.Dispose();
+                Assert.That(provider.VirtualRecoveryCount, Is.EqualTo(1));
+            }
+            finally
+            {
+                manager.Dispose();
+            }
+        }
+
+        [Test]
         public void Dispose_WhenRecoveryErrorObserverThrows_StillCompletesRecovery()
         {
             var provider = new FakeUIElementProvider();

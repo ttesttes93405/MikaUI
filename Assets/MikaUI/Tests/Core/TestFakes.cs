@@ -63,6 +63,7 @@ namespace Tests.Core
         public int RecoveryCount { get; private set; }
         public int UnexpectedRecoveryCount { get; private set; }
         public int VirtualRecoveryCount { get; private set; }
+        public bool ThrowOnVirtualCreated { get; set; }
 
         public UIElement<DummyContainer> GetUIElement<T>(string name) where T : DummyUI, IVisualUI
         {
@@ -96,7 +97,15 @@ namespace Tests.Core
                 Create = () =>
                 {
                     var ui = new T();
-                    return MikaTask<(IVirtualUI ui, Action onCreated, Guid elementID)>.FromResult((ui, () => { }, Guid.NewGuid()));
+                    return MikaTask<(IVirtualUI ui, Action onCreated, Guid elementID)>.FromResult((ui, OnCreated, Guid.NewGuid()));
+
+                    void OnCreated()
+                    {
+                        if (ThrowOnVirtualCreated)
+                        {
+                            throw new InvalidOperationException("Simulated virtual creation failure.");
+                        }
+                    }
                 },
                 Recovery = ui => { VirtualRecoveryCount++; },
             };
@@ -274,6 +283,22 @@ namespace Tests.Core
         public void OnUIRecovered(string name, Guid tokenID)
         {
             Events.Add(EventType.Recovered);
+        }
+    }
+
+    internal sealed class ThrowingVirtualCreatePlugin :
+        IPlugin<DummyUI, DummyContainer, object>,
+        IPluginVirtualUICreatedHandler
+    {
+        public int SortingOrder => 0;
+
+        public void Install(UIManager<DummyUI, DummyContainer, object> manager) { }
+
+        public void Uninstall(UIManager<DummyUI, DummyContainer, object> manager) { }
+
+        public void OnVirtualUICreated<T>(UIControlToken<T> token, IBaseUI parentUI) where T : IVirtualUI, new()
+        {
+            throw new InvalidOperationException("Simulated virtual plugin failure.");
         }
     }
 
