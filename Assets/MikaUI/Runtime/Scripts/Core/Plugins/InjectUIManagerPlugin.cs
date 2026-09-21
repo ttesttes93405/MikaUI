@@ -39,8 +39,7 @@ namespace MikaUI
 
             foreach (var field in fields)
             {
-                if (field.FieldType != uiManager.GetType() &&
-                    field.FieldType.IsSubclassOf(uiManager.GetType()) == false)
+                if (field.FieldType.IsAssignableFrom(uiManager.GetType()) == false)
                 {
                     continue;
                 }

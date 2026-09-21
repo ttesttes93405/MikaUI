@@ -220,6 +220,46 @@ namespace Tests.Core
         }
 
         [Test]
+        public void Create_InjectsDerivedManagerIntoBaseManagerField()
+        {
+            var provider = new FakeUIElementProvider();
+            var plugin = new InjectUIManagerPlugin<DummyUI, DummyContainer, object>();
+            var manager = new TestableUIManager(
+                provider,
+                new FakeCanvasProvider(),
+                new IPlugin<DummyUI, DummyContainer, object>[] { plugin },
+                DummyLogger.Create());
+
+            try
+            {
+                var token = manager.Create<DummyUI>(DummySlot.Root()).WaitResult();
+
+                Assert.That(token.UI.Manager, Is.SameAs(manager));
+            }
+            finally
+            {
+                manager.Dispose();
+            }
+        }
+
+        [Test]
+        public void Dispose_WhenPluginUninstallThrows_UninstallsLaterPluginsAndLogsFailure()
+        {
+            var loggedErrors = new List<object>();
+            var laterPlugin = new RecordingUninstallPlugin(sortingOrder: 0);
+            var throwingPlugin = new ThrowingUninstallPlugin(sortingOrder: 1);
+            var manager = new TestableUIManager(
+                new FakeUIElementProvider(),
+                new FakeCanvasProvider(),
+                new IPlugin<DummyUI, DummyContainer, object>[] { laterPlugin, throwingPlugin },
+                new Logger { LogError = loggedErrors.Add });
+
+            Assert.DoesNotThrow(() => manager.Dispose());
+            Assert.That(laterPlugin.UninstallCount, Is.EqualTo(1));
+            Assert.That(loggedErrors.Single(), Is.SameAs(throwingPlugin.Exception));
+        }
+
+        [Test]
         public void CreateVirtual_WhenProviderLookupFails_LogsAndPropagatesException()
         {
             var expectedException = new InvalidOperationException("Simulated virtual UI lookup failure.");

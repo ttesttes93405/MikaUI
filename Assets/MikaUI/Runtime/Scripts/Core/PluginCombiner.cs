@@ -43,9 +43,28 @@ namespace MikaUI
 
         public void Uninstall(UIManager<TUI, TContainer, TSlotConfig> manager)
         {
+            Uninstall(manager, onError: null);
+        }
+
+        internal void Uninstall(UIManager<TUI, TContainer, TSlotConfig> manager, Action<Exception> onError)
+        {
             foreach (var plugin in reversePlugins)
             {
-                plugin.Uninstall(manager);
+                try
+                {
+                    plugin.Uninstall(manager);
+                }
+                catch (Exception exception)
+                {
+                    try
+                    {
+                        onError?.Invoke(exception);
+                    }
+                    catch
+                    {
+                        // One failed error reporter must not leave later plugins installed.
+                    }
+                }
             }
         }
 

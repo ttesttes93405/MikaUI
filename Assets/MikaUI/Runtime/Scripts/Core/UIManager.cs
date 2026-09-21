@@ -619,7 +619,17 @@ namespace MikaUI
                 UIFullTreeRecovery(node);
             }
 
-            combinedPlugin.Uninstall(this);
+            combinedPlugin.Uninstall(this, exception =>
+            {
+                try
+                {
+                    logger?.LogError?.Invoke(exception);
+                }
+                catch
+                {
+                    // A logger failure must not leave later plugins installed.
+                }
+            });
 
             nodeManager.Dispose();
         }

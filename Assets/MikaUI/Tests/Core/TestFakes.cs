@@ -213,6 +213,7 @@ namespace Tests.Core
 
     internal class DummyUI : IVisualUI
     {
+        public UIManager<DummyUI, DummyContainer, object> Manager;
     }
 
     internal class DummyVirtualUI : IVirtualUI
@@ -386,6 +387,42 @@ namespace Tests.Core
         public void OnUIUnexpectedDestroyed(string name, Guid tokenID)
         {
             throw new InvalidOperationException("Simulated unexpected-destruction failure.");
+        }
+    }
+
+    internal sealed class ThrowingUninstallPlugin : IPlugin<DummyUI, DummyContainer, object>
+    {
+        public Exception Exception { get; } = new InvalidOperationException("Simulated uninstall failure.");
+        public int SortingOrder { get; }
+
+        public ThrowingUninstallPlugin(int sortingOrder)
+        {
+            SortingOrder = sortingOrder;
+        }
+
+        public void Install(UIManager<DummyUI, DummyContainer, object> manager) { }
+
+        public void Uninstall(UIManager<DummyUI, DummyContainer, object> manager)
+        {
+            throw Exception;
+        }
+    }
+
+    internal sealed class RecordingUninstallPlugin : IPlugin<DummyUI, DummyContainer, object>
+    {
+        public int SortingOrder { get; }
+        public int UninstallCount { get; private set; }
+
+        public RecordingUninstallPlugin(int sortingOrder)
+        {
+            SortingOrder = sortingOrder;
+        }
+
+        public void Install(UIManager<DummyUI, DummyContainer, object> manager) { }
+
+        public void Uninstall(UIManager<DummyUI, DummyContainer, object> manager)
+        {
+            UninstallCount++;
         }
     }
 
