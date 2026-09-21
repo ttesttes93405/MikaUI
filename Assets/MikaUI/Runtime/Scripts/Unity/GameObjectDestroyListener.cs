@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using UnityEngine;
 
 
@@ -12,7 +13,8 @@ namespace MikaUI
 
         private void OnDestroy()
         {
-            foreach (var action in onDestroyActions.Values)
+            // A callback can unregister itself while this object is being destroyed.
+            foreach (var action in onDestroyActions.Values.ToArray())
             {
                 action?.Invoke();
             }
@@ -55,4 +57,3 @@ namespace MikaUI
 
     }
 }
-

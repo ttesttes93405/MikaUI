@@ -61,6 +61,7 @@ namespace Tests.Core
     {
         public List<DummyUI> CreatedInstances { get; } = new();
         public int RecoveryCount { get; private set; }
+        public int UnexpectedRecoveryCount { get; private set; }
         public int VirtualRecoveryCount { get; private set; }
 
         public UIElement<DummyContainer> GetUIElement<T>(string name) where T : DummyUI, IVisualUI
@@ -83,6 +84,7 @@ namespace Tests.Core
                     return MikaTask<(IVisualUI ui, Action onCreated, Guid elementID)>.FromResult((ui, () => { }, elementId));
                 },
                 Recovery = ui => { RecoveryCount++; },
+                UnexpectedRecovery = ui => { UnexpectedRecoveryCount++; },
             };
         }
 
@@ -272,6 +274,22 @@ namespace Tests.Core
         public void OnUIRecovered(string name, Guid tokenID)
         {
             Events.Add(EventType.Recovered);
+        }
+    }
+
+    internal sealed class ThrowingUnexpectedDestructionPlugin :
+        IPlugin<DummyUI, DummyContainer, object>,
+        IPluginUIUnexpectedDestroyedHandler
+    {
+        public int SortingOrder => 0;
+
+        public void Install(UIManager<DummyUI, DummyContainer, object> manager) { }
+
+        public void Uninstall(UIManager<DummyUI, DummyContainer, object> manager) { }
+
+        public void OnUIUnexpectedDestroyed(string name, Guid tokenID)
+        {
+            throw new InvalidOperationException("Simulated unexpected-destruction failure.");
         }
     }
 

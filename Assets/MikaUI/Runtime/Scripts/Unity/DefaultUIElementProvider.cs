@@ -69,6 +69,15 @@ namespace MikaUI
                     {
                         bool isReuseable = source.UITemplate is IUIEffectable;
 
+                        // A pooled object can be destroyed externally after normal
+                        // recovery, where no destroy listener is attached anymore.
+                        while (uiPool.Count > 0 && (uiPool.Peek() as MonoBehaviour) == null)
+                        {
+                            var destroyedUI = uiPool.Dequeue();
+                            uiCleaner.Remove(destroyedUI);
+                            uiIDMap.Remove(destroyedUI);
+                        }
+
                         IVisualUI ui = null;
                         if (isReuseable && uiPool.Count > 0)
                         {
@@ -98,6 +107,13 @@ namespace MikaUI
                     },
                     Recovery = (ui) =>
                     {
+                        if ((ui as MonoBehaviour) == null)
+                        {
+                            uiCleaner.Remove(ui);
+                            uiIDMap.Remove(ui);
+                            return;
+                        }
+
                         if (ui is IUIEffectable reuseable)
                         {
                             if (uiCleaner.TryGetValue(ui, out var cleaner))
@@ -112,7 +128,36 @@ namespace MikaUI
                         {
                             UnityEngine.Object.Destroy((ui as MonoBehaviour).gameObject);
                         }
-                    }
+                    },
+                    UnexpectedRecovery = (ui) =>
+                    {
+                        if ((ui as MonoBehaviour) == null)
+                        {
+                            // Unity has already destroyed this object. It must never
+                            // be returned to the pool or accessed through Transform.
+                            uiCleaner.Remove(ui);
+                            uiIDMap.Remove(ui);
+                            return;
+                        }
+
+                        // A managed child can outlive a destroyed parent in the
+                        // Transform hierarchy. Its lifecycle still ends with the
+                        // parent, but it is safe to recover this surviving instance.
+                        if (ui is IUIEffectable reuseable)
+                        {
+                            if (uiCleaner.TryGetValue(ui, out var cleaner))
+                            {
+                                cleaner?.Invoke();
+                                uiCleaner.Remove(ui);
+                            }
+                            uiPool.Enqueue(ui);
+                            (ui as MonoBehaviour).transform.SetParent(poolRoot, false);
+                        }
+                        else
+                        {
+                            UnityEngine.Object.Destroy((ui as MonoBehaviour).gameObject);
+                        }
+                    },
                 };
             }
         }

@@ -33,6 +33,15 @@ namespace MikaUI.Plugin
         public void OnUIRecovered(string name, Guid tokenID);
     }
 
+    /// <summary>
+    /// Clears plugin bookkeeping when Unity destroys an element outside MikaUI's
+    /// normal recovery path. Handlers must not access the UI instance.
+    /// </summary>
+    public interface IPluginUIUnexpectedDestroyedHandler
+    {
+        public void OnUIUnexpectedDestroyed(string name, Guid tokenID);
+    }
+
     public interface IPluginVirtualUICreatedHandler
     {
         public void OnVirtualUICreated<T>(UIControlToken<T> token, IBaseUI parentUI) where T : IVirtualUI, new();

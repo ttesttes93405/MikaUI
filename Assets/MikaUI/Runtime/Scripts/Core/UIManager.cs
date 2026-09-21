@@ -14,6 +14,13 @@ namespace MikaUI
     }
 
     public sealed record RecoveryErrorInfo(Guid TokenID, string NodeName, RecoveryPhase Phase, Exception Exception);
+    public sealed record UnexpectedDestructionInfo(Guid TokenID, string NodeName);
+
+    enum TreeEndMode
+    {
+        NormalRecovery,
+        UnexpectedDestruction,
+    }
 
     public class UIManager<TUI, TContainer, TSlotConfig> : IDisposable
         where TUI : class
@@ -27,6 +34,7 @@ namespace MikaUI
         readonly Logger logger;
 
         public event Action<RecoveryErrorInfo> OnRecoveryError;
+        public event Action<UnexpectedDestructionInfo> OnUnexpectedDestruction;
 
         public UIManager(IUIElementProvider<TUI, TContainer> uiElementProvider, IEnumerable<IPlugin<TUI, TContainer, TSlotConfig>> plugins, Logger logger)
         {
@@ -107,6 +115,26 @@ namespace MikaUI
                             // Returning the element to its provider must not depend on
                             // detaching the node or a post-recovery plugin succeeding.
                             uiElement.Recovery(ui);
+                        }
+                    }
+                },
+                UnexpectedRecoverySelf = () =>
+                {
+                    try
+                    {
+                        nodeManager.DetachUnexpectedNode(node, ui);
+                    }
+                    finally
+                    {
+                        try
+                        {
+                            combinedPlugin.OnUIUnexpectedDestroyed(token.Name, token.TokenID);
+                        }
+                        finally
+                        {
+                            // Provider bookkeeping must be cleaned up even when a
+                            // plugin cannot handle the unexpected-destruction event.
+                            (uiElement.UnexpectedRecovery ?? uiElement.Recovery)?.Invoke(ui);
                         }
                     }
                 },
@@ -281,6 +309,13 @@ namespace MikaUI
                     nodeManager.DetachNode(node, ui);
                     virtualUIElement.Recovery(ui);
                 },
+                UnexpectedRecoverySelf = () =>
+                {
+                    // Virtual UI has no Unity object, so its normal provider
+                    // cleanup remains safe even when its visual parent vanished.
+                    nodeManager.DetachUnexpectedNode(node, ui);
+                    virtualUIElement.Recovery(ui);
+                },
                 OnRecoveryCompleted = token.CompleteDispose,
             };
 
@@ -306,84 +341,145 @@ namespace MikaUI
 
             try
             {
-                TreeBeforeRecovery(node.TokenID);
-                TreeAfterRecovery(node.TokenID);
+                EndTree(node, TreeEndMode.NormalRecovery);
             }
             catch (Exception e)
             {
                 ReportRecoveryError(new RecoveryErrorInfo(node.TokenID, node.Name, RecoveryPhase.Unexpected, e));
             }
+        }
 
-
-            void TreeBeforeRecovery(Guid tokenID)
+        /// <summary>
+        /// Converges MikaUI bookkeeping after Unity has destroyed a managed visual
+        /// element outside the normal token-driven lifecycle.
+        /// </summary>
+        public void HandleUnexpectedDestruction(UIControlToken token)
+        {
+            if (token == null || token.IsDisposed)
             {
-                if (tokenID == Guid.Empty)
-                {
-                    logger?.LogError?.Invoke($"Invalid tokenID: {tokenID}");
-                    return;
-                }
+                return;
+            }
 
-                if (nodeManager.TryGetNode(tokenID, out var node) == false)
-                {
-                    logger?.LogError?.Invoke($"Cannot find UI node for {tokenID}");
-                    return;
-                }
+            if (nodeManager.TryGetNode(token.TokenID, out var node) == false)
+            {
+                return;
+            }
 
-                foreach (var childId in node.Children.ToArray())
-                {
-                    TreeBeforeRecovery(childId);
-                }
+            EndTree(node, TreeEndMode.UnexpectedDestruction);
+        }
 
+        /// <summary>
+        /// Ends a managed subtree in child-first order. Both exit paths share the
+        /// traversal, token completion, and error isolation; their node finalizers
+        /// differ because unexpected destruction cannot safely access a Unity object.
+        /// </summary>
+        void EndTree(Node root, TreeEndMode mode)
+        {
+            if (root.ValidateStatus(NodeStatus.Created) == false)
+            {
+                return;
+            }
+
+            if (mode == TreeEndMode.NormalRecovery)
+            {
+                TraversePostOrder(root.TokenID, BeforeRecoveryNode);
+                TraversePostOrder(root.TokenID, AfterRecoveryNode);
+                return;
+            }
+
+            TraversePostOrder(root.TokenID, UnexpectedDestructionNode);
+        }
+
+        void TraversePostOrder(Guid tokenID, Action<Node> visit)
+        {
+            if (tokenID == Guid.Empty)
+            {
+                logger?.LogError?.Invoke($"Invalid tokenID: {tokenID}");
+                return;
+            }
+
+            if (nodeManager.TryGetNode(tokenID, out var node) == false)
+            {
+                logger?.LogError?.Invoke($"Cannot find UI node for {tokenID}");
+                return;
+            }
+
+            foreach (var childId in node.Children.ToArray())
+            {
+                TraversePostOrder(childId, visit);
+            }
+
+            visit(node);
+        }
+
+        void BeforeRecoveryNode(Node node)
+        {
+            try
+            {
+                node.BeforeRecoverySelf?.Invoke();
+            }
+            catch (Exception e)
+            {
+                ReportRecoveryError(new RecoveryErrorInfo(node.TokenID, node.Name, RecoveryPhase.BeforeRecovery, e));
+            }
+        }
+
+        void AfterRecoveryNode(Node node)
+        {
+            EndNode(node, node.AfterRecoverySelf, RecoveryPhase.AfterRecovery, notifyUnexpectedDestruction: false);
+        }
+
+        void UnexpectedDestructionNode(Node node)
+        {
+            EndNode(node, node.UnexpectedRecoverySelf, RecoveryPhase.Unexpected, notifyUnexpectedDestruction: true);
+        }
+
+        void EndNode(Node node, Action finalizer, RecoveryPhase phase, bool notifyUnexpectedDestruction)
+        {
+            try
+            {
+                finalizer?.Invoke();
+                if (notifyUnexpectedDestruction)
+                {
+                    NotifyUnexpectedDestruction(node);
+                }
+            }
+            catch (Exception e)
+            {
+                ReportRecoveryError(new RecoveryErrorInfo(node.TokenID, node.Name, phase, e));
+            }
+            finally
+            {
                 try
                 {
-                    node.BeforeRecoverySelf();
+                    node.OnRecoveryCompleted?.Invoke();
                 }
                 catch (Exception e)
                 {
-                    ReportRecoveryError(new RecoveryErrorInfo(node.TokenID, node.Name, RecoveryPhase.BeforeRecovery, e));
+                    ReportRecoveryError(new RecoveryErrorInfo(node.TokenID, node.Name, phase, e));
                 }
             }
+        }
 
-            void TreeAfterRecovery(Guid tokenID)
+        void NotifyUnexpectedDestruction(Node node)
+        {
+            var handlers = OnUnexpectedDestruction;
+            if (handlers == null)
             {
-                if (tokenID == Guid.Empty)
-                {
-                    logger?.LogError?.Invoke($"Invalid tokenID: {tokenID}");
-                    return;
-                }
+                return;
+            }
 
-                if (nodeManager.TryGetNode(tokenID, out var node) == false)
-                {
-                    logger?.LogError?.Invoke($"Cannot find UI node for {tokenID}");
-                    return;
-                }
-
-                foreach (var childId in node.Children.ToArray())
-                {
-                    TreeAfterRecovery(childId);
-                }
-
+            foreach (var callback in handlers.GetInvocationList())
+            {
                 try
                 {
-                    node.AfterRecoverySelf();
+                    ((Action<UnexpectedDestructionInfo>)callback).Invoke(new UnexpectedDestructionInfo(node.TokenID, node.Name));
                 }
                 catch (Exception e)
                 {
-                    ReportRecoveryError(new RecoveryErrorInfo(node.TokenID, node.Name, RecoveryPhase.AfterRecovery, e));
-                }
-                finally
-                {
-                    try
-                    {
-                        node.OnRecoveryCompleted?.Invoke();
-                    }
-                    catch (Exception e)
-                    {
-                        ReportRecoveryError(new RecoveryErrorInfo(node.TokenID, node.Name, RecoveryPhase.AfterRecovery, e));
-                    }
+                    logger?.LogError?.Invoke(e);
                 }
             }
-
         }
 
         public virtual void Dispose()

@@ -11,6 +11,7 @@ namespace MikaUI
         IPluginUICreatedHandler<TUI, TContainer, TSlotConfig>,
         IPluginUIWillRecoveryHandler<TUI, TContainer>,
         IPluginUIRecoveredHandler,
+        IPluginUIUnexpectedDestroyedHandler,
         IPluginVirtualUICreatedHandler
         where TUI : class where TContainer : class where TSlotConfig : class
     {
@@ -72,6 +73,15 @@ namespace MikaUI
             {
                 if (plugin is IPluginUIRecoveredHandler pluginUIRecoveredHandler)
                     pluginUIRecoveredHandler.OnUIRecovered(name, tokenID);
+            }
+        }
+
+        public void OnUIUnexpectedDestroyed(string name, Guid tokenID)
+        {
+            foreach (var plugin in reversePlugins)
+            {
+                if (plugin is IPluginUIUnexpectedDestroyedHandler handler)
+                    handler.OnUIUnexpectedDestroyed(name, tokenID);
             }
         }
 

@@ -286,5 +286,63 @@ namespace Tests.Core
             }
         }
 
+        [Test]
+        public void UnexpectedDestruction_ConvergesTreeWithoutNormalRecovery()
+        {
+            var provider = new FakeUIElementProvider();
+            var canvasProvider = new FakeCanvasProvider();
+            var manager = new TestableUIManager(provider, canvasProvider, Array.Empty<IPlugin<DummyUI, DummyContainer, object>>(), DummyLogger.Create());
+            var notifications = new List<UnexpectedDestructionInfo>();
+            manager.OnUnexpectedDestruction += notifications.Add;
+
+            try
+            {
+                var parentToken = manager.CreateWithSorting(name: "Parent").WaitResult();
+                var childToken = manager.Create<DummyUI>(DummySlot.Child(parentToken.UI), name: "Child").WaitResult();
+                var virtualChildToken = manager.CreateVirtual<DummyVirtualUI>(new VirtualSlot(parentToken.UI)).WaitResult();
+
+                manager.HandleUnexpectedDestruction(parentToken);
+
+                Assert.That(provider.RecoveryCount, Is.EqualTo(0));
+                Assert.That(provider.UnexpectedRecoveryCount, Is.EqualTo(2));
+                Assert.That(provider.VirtualRecoveryCount, Is.EqualTo(1));
+                Assert.That(canvasProvider.RegisteredIds, Is.Empty);
+                Assert.That(parentToken.IsDisposed, Is.True);
+                Assert.That(childToken.IsDisposed, Is.True);
+                Assert.That(virtualChildToken.IsDisposed, Is.True);
+                CollectionAssert.AreEquivalent(new[] { parentToken.TokenID, childToken.TokenID, virtualChildToken.TokenID }, notifications.Select(info => info.TokenID));
+                Assert.DoesNotThrow(() => parentToken.Dispose());
+                Assert.DoesNotThrow(() => childToken.Dispose());
+                Assert.DoesNotThrow(() => virtualChildToken.Dispose());
+            }
+            finally
+            {
+                manager.Dispose();
+            }
+        }
+
+        [Test]
+        public void UnexpectedDestruction_WhenPluginThrows_StillCleansUpTheElement()
+        {
+            var provider = new FakeUIElementProvider();
+            var canvasProvider = new FakeCanvasProvider();
+            var plugin = new ThrowingUnexpectedDestructionPlugin();
+            var manager = new TestableUIManager(provider, canvasProvider, new IPlugin<DummyUI, DummyContainer, object>[] { plugin }, DummyLogger.Create());
+
+            try
+            {
+                var token = manager.CreateWithSorting().WaitResult();
+
+                Assert.DoesNotThrow(() => manager.HandleUnexpectedDestruction(token));
+                Assert.That(provider.UnexpectedRecoveryCount, Is.EqualTo(1));
+                Assert.That(canvasProvider.RegisteredIds, Is.Empty);
+                Assert.That(token.IsDisposed, Is.True);
+            }
+            finally
+            {
+                manager.Dispose();
+            }
+        }
+
     }
 }

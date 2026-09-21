@@ -25,6 +25,7 @@ namespace MikaUI
         public NodeStatus Status { get; private set; }
         public Action BeforeRecoverySelf { get; init; }
         public Action AfterRecoverySelf { get; init; }
+        public Action UnexpectedRecoverySelf { get; init; }
         public Action OnRecoveryCompleted { get; init; }
 
         public Node(Guid tokenID, string name)
@@ -138,6 +139,33 @@ namespace MikaUI
         {
             uiToNode.Remove(ui);
             DetachNode(node);
+        }
+
+        /// <summary>
+        /// Removes a node whose Unity object disappeared before normal recovery.
+        /// This deliberately bypasses the BeforeRecovered state because recovery
+        /// hooks are not safe to run against an already-destroyed object.
+        /// </summary>
+        public void DetachUnexpectedNode(Node node, IBaseUI ui)
+        {
+            uiToNode.Remove(ui);
+
+            if (node.Status == NodeStatus.Created)
+            {
+                node.ChangeStatus(from: NodeStatus.Created, to: NodeStatus.Recovered);
+            }
+
+            if (node.ParentTokenID.HasValue && treeNodes.TryGetValue(node.ParentTokenID.Value, out var parentNode))
+            {
+                parentNode.Children.Remove(node.TokenID);
+                node.ParentTokenID = null;
+            }
+            else
+            {
+                rootNodeIds.Remove(node.TokenID);
+            }
+
+            treeNodes.Remove(node.TokenID);
         }
 
         public void DetachNode(Node node)

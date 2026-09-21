@@ -8,7 +8,8 @@ namespace MikaUI.Plugin
         IPlugin<MonoBehaviour, Transform, SlotRectConfigs>,
         IPluginUICreatedHandler<MonoBehaviour, Transform, SlotRectConfigs>,
         IPluginUIWillRecoveryHandler<MonoBehaviour, Transform>,
-        IPluginUIRecoveredHandler
+        IPluginUIRecoveredHandler,
+        IPluginUIUnexpectedDestroyedHandler
     {
         readonly Dictionary<Guid, string> nameMap = new();
 
@@ -47,6 +48,11 @@ namespace MikaUI.Plugin
         }
 
         public void OnUIRecovered(string name, Guid tokenID)
+        {
+            nameMap.Remove(tokenID);
+        }
+
+        public void OnUIUnexpectedDestroyed(string name, Guid tokenID)
         {
             nameMap.Remove(tokenID);
         }
