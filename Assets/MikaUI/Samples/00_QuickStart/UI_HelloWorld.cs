@@ -2,16 +2,16 @@ using System;
 using System.Threading.Tasks;
 using MikaUI;
 using UnityEngine;
-using UnityEngine.UI;
+using TMPro;
 
 public class UI_HelloWorld : MonoBehaviour, IVisualUI, IUIEffectable
 {
 
     [SerializeField]
-    Text helloText;
+    TextMeshProUGUI helloText;
 
     [SerializeField]
-    Text mikaText;
+    TextMeshProUGUI mikaText;
 
     public async Task Invoke(string name)
     {
@@ -38,7 +38,7 @@ public class UI_HelloWorld : MonoBehaviour, IVisualUI, IUIEffectable
         await EraseText(helloText);
 
 
-        static async Task TypeText(Text uiText, string content)
+        static async Task TypeText(TextMeshProUGUI uiText, string content)
         {
             for (int i = 0; i <= content.Length; i++)
             {
@@ -47,7 +47,7 @@ public class UI_HelloWorld : MonoBehaviour, IVisualUI, IUIEffectable
             }
         }
 
-        static async Task EraseText(Text uiText)
+        static async Task EraseText(TextMeshProUGUI uiText)
         {
             var content = uiText.text;
             for (int i = content.Length; i >= 0; i--)
