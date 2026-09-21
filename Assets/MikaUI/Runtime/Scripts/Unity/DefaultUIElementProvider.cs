@@ -102,7 +102,7 @@ namespace MikaUI
                         {
                             if (uiCleaner.TryGetValue(ui, out var cleaner))
                             {
-                                cleaner();
+                                cleaner?.Invoke();
                                 uiCleaner.Remove(ui);
                             }
                             uiPool.Enqueue(ui);

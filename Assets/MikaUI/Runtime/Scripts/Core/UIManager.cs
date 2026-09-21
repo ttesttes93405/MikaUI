@@ -92,18 +92,42 @@ namespace MikaUI
                 },
                 AfterRecoverySelf = () =>
                 {
-                    nodeManager.DetachNode(node, ui);
-                    combinedPlugin.OnUIRecovered(token.Name, token.TokenID);
-                    uiElement.Recovery(ui);
+                    try
+                    {
+                        nodeManager.DetachNode(node, ui);
+                    }
+                    finally
+                    {
+                        try
+                        {
+                            combinedPlugin.OnUIRecovered(token.Name, token.TokenID);
+                        }
+                        finally
+                        {
+                            // Returning the element to its provider must not depend on
+                            // detaching the node or a post-recovery plugin succeeding.
+                            uiElement.Recovery(ui);
+                        }
+                    }
                 },
                 OnRecoveryCompleted = token.CompleteDispose,
             };
 
-            nodeManager.AttachNode(parentUI, node, ui);
+            var nodeAttached = false;
+            try
+            {
+                nodeManager.AttachNode(parentUI, node, ui);
+                nodeAttached = true;
 
-            UICreated(token);
+                UICreated(token);
 
-            return token;
+                return token;
+            }
+            catch
+            {
+                RollbackFailedCreation();
+                throw;
+            }
 
 
             void UICreated(UIControlToken<T, TContainer> token)
@@ -112,6 +136,111 @@ namespace MikaUI
                 onCreated?.Invoke();
             }
 
+            // A caller receives the token only after all creation hooks have succeeded.
+            // Until then this method owns the element and must compensate for a failed hook.
+            void RollbackFailedCreation()
+            {
+                if (nodeAttached)
+                {
+                    RollbackableRun(
+                        () => node.BeforeRecoverySelf(),
+                        rollbackException => ReportRollbackFailure(RecoveryPhase.BeforeRecovery, rollbackException)
+                    );
+
+                    RollbackableRun(
+                        () => nodeManager.DetachNode(node, ui),
+                        rollbackException => ReportRollbackFailure(RecoveryPhase.AfterRecovery, rollbackException)
+                    );
+
+                    RollbackableRun(
+                        () => combinedPlugin.OnUIRecovered(token.Name, token.TokenID),
+                        rollbackException => ReportRollbackFailure(RecoveryPhase.AfterRecovery, rollbackException)
+                    );
+                }
+
+                RollbackableRun(
+                    () => uiElement.Recovery(ui),
+                    rollbackException => ReportRollbackFailure(RecoveryPhase.AfterRecovery, rollbackException),
+                    () => token.CompleteDispose()
+                );
+            }
+
+            void ReportRollbackFailure(RecoveryPhase phase, Exception exception)
+            {
+                ReportRecoveryError(new RecoveryErrorInfo(token.TokenID, token.Name, phase, exception));
+            }
+
+        }
+
+        void RollbackableRun(Action action, Action<Exception> onError, Action onCompleted = null)
+        {
+            if (action == null)
+                return;
+
+            try
+            {
+                action();
+            }
+            catch (Exception ex)
+            {
+                try
+                {
+                    onError?.Invoke(ex);
+                }
+                catch
+                {
+                    // A failed error reporter must not interrupt rollback.
+                }
+            }
+            finally
+            {
+                try
+                {
+                    onCompleted?.Invoke();
+                }
+                catch (Exception ex)
+                {
+                    try
+                    {
+                        onError?.Invoke(ex);
+                    }
+                    catch
+                    {
+                        // A failed error reporter must not interrupt rollback.
+                    }
+                }
+            }
+        }
+
+        void ReportRecoveryError(RecoveryErrorInfo errorInfo)
+        {
+            try
+            {
+                logger?.LogError?.Invoke(errorInfo.Exception);
+            }
+            catch
+            {
+                // Reporting must not interrupt the remaining cleanup steps.
+            }
+
+            var handlers = OnRecoveryError;
+            if (handlers == null)
+            {
+                return;
+            }
+
+            foreach (var callback in handlers.GetInvocationList())
+            {
+                try
+                {
+                    var handler = (Action<RecoveryErrorInfo>)callback;
+                    handler(errorInfo);
+                }
+                catch
+                {
+                    // One observer must not prevent other observers or cleanup.
+                }
+            }
         }
 
         public MikaTask<UIControlToken<T>> CreateVirtual<T>(IVirtualSlot slot = null) where T : IVirtualUI, new()
@@ -182,8 +311,7 @@ namespace MikaUI
             }
             catch (Exception e)
             {
-                logger?.LogError?.Invoke(e);
-                OnRecoveryError?.Invoke(new RecoveryErrorInfo(node.TokenID, node.Name, RecoveryPhase.Unexpected, e));
+                ReportRecoveryError(new RecoveryErrorInfo(node.TokenID, node.Name, RecoveryPhase.Unexpected, e));
             }
 
 
@@ -212,8 +340,7 @@ namespace MikaUI
                 }
                 catch (Exception e)
                 {
-                    logger?.LogError?.Invoke(e);
-                    OnRecoveryError?.Invoke(new RecoveryErrorInfo(node.TokenID, node.Name, RecoveryPhase.BeforeRecovery, e));
+                    ReportRecoveryError(new RecoveryErrorInfo(node.TokenID, node.Name, RecoveryPhase.BeforeRecovery, e));
                 }
             }
 
@@ -242,8 +369,7 @@ namespace MikaUI
                 }
                 catch (Exception e)
                 {
-                    logger?.LogError?.Invoke(e);
-                    OnRecoveryError?.Invoke(new RecoveryErrorInfo(node.TokenID, node.Name, RecoveryPhase.AfterRecovery, e));
+                    ReportRecoveryError(new RecoveryErrorInfo(node.TokenID, node.Name, RecoveryPhase.AfterRecovery, e));
                 }
                 finally
                 {
@@ -253,8 +379,7 @@ namespace MikaUI
                     }
                     catch (Exception e)
                     {
-                        logger?.LogError?.Invoke(e);
-                        OnRecoveryError?.Invoke(new RecoveryErrorInfo(node.TokenID, node.Name, RecoveryPhase.AfterRecovery, e));
+                        ReportRecoveryError(new RecoveryErrorInfo(node.TokenID, node.Name, RecoveryPhase.AfterRecovery, e));
                     }
                 }
             }

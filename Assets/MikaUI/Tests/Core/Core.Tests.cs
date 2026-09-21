@@ -112,6 +112,86 @@ namespace Tests.Core
         }
 
         [Test]
+        public void Create_WhenCreatedPluginThrows_RollsBackTheNodeAndElement()
+        {
+            var provider = new FakeUIElementProvider();
+            var canvasProvider = new FakeCanvasProvider();
+            var plugin = new ThrowingCreatePlugin();
+            var manager = new TestableUIManager(provider, canvasProvider, new IPlugin<DummyUI, DummyContainer, object>[] { plugin }, DummyLogger.Create());
+
+            try
+            {
+                Assert.Throws<AggregateException>(() => manager.Create<DummyUI>(DummySlot.Root()).WaitResult());
+
+                Assert.That(provider.CreatedInstances.Count, Is.EqualTo(1));
+                Assert.That(provider.RecoveryCount, Is.EqualTo(1));
+                CollectionAssert.AreEqual(
+                    new[] { EventType.Created, EventType.WillRecovery, EventType.Recovered },
+                    plugin.Events);
+
+                // A second recovery during manager disposal would mean the failed node
+                // was retained in the lifecycle tree.
+                manager.Dispose();
+                Assert.That(provider.RecoveryCount, Is.EqualTo(1));
+            }
+            finally
+            {
+                manager.Dispose();
+            }
+        }
+
+        [Test]
+        public void Create_WhenRecoveryErrorObserverThrows_StillCompletesRollback()
+        {
+            var provider = new FakeUIElementProvider();
+            var canvasProvider = new FakeCanvasProvider();
+            var plugin = new ThrowingCreatePlugin();
+            var manager = new TestableUIManager(provider, canvasProvider, new IPlugin<DummyUI, DummyContainer, object>[] { plugin }, DummyLogger.Create());
+            manager.OnRecoveryError += _ => throw new InvalidOperationException("Simulated observer failure.");
+
+            try
+            {
+                Assert.Throws<AggregateException>(() => manager.Create<DummyUI>(DummySlot.Root()).WaitResult());
+
+                Assert.That(provider.RecoveryCount, Is.EqualTo(1));
+                CollectionAssert.AreEqual(
+                    new[] { EventType.Created, EventType.WillRecovery, EventType.Recovered },
+                    plugin.Events);
+
+                manager.Dispose();
+                Assert.That(provider.RecoveryCount, Is.EqualTo(1));
+            }
+            finally
+            {
+                manager.Dispose();
+            }
+        }
+
+        [Test]
+        public void Dispose_WhenRecoveryErrorObserverThrows_StillCompletesRecovery()
+        {
+            var provider = new FakeUIElementProvider();
+            var canvasProvider = new FakeCanvasProvider();
+            var plugin = new ThrowingRecoveryPlugin();
+            var manager = new TestableUIManager(provider, canvasProvider, new IPlugin<DummyUI, DummyContainer, object>[] { plugin }, DummyLogger.Create());
+
+            try
+            {
+                var token = manager.CreateWithSorting().WaitResult();
+                plugin.ThrowForTokenID = token.TokenID;
+                manager.OnRecoveryError += _ => throw new InvalidOperationException("Simulated observer failure.");
+
+                Assert.DoesNotThrow(() => token.Dispose());
+                Assert.That(provider.RecoveryCount, Is.EqualTo(1));
+                Assert.That(token.IsDisposed, Is.True);
+            }
+            finally
+            {
+                manager.Dispose();
+            }
+        }
+
+        [Test]
         public void DisposingParent_RecoversChildBeforeParent()
         {
             var provider = new FakeUIElementProvider();

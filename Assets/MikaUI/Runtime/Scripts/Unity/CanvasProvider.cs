@@ -75,6 +75,29 @@ namespace MikaUI
             }
 
             uis.Add(id);
+
+            if (pool.TryGetValue(sortingOrder, out var canvas))
+            {
+                canvas.enabled = true;
+                canvas.gameObject.SetActive(true);
+            }
+        }
+
+        /// <summary>
+        /// Releases a canvas requested for a UI creation that did not complete.
+        /// A concurrent successful creation may register later; Register restores its active state.
+        /// </summary>
+        internal void RecoverIfUnused(int sortingOrder)
+        {
+            if (canvasUsingRegistry.TryGetValue(sortingOrder, out var uis) && uis.Count > 0)
+            {
+                return;
+            }
+
+            if (pool.TryGetValue(sortingOrder, out var canvas))
+            {
+                RecoverCanvas(canvas);
+            }
         }
 
         public void Unregister(Guid id)
@@ -93,11 +116,12 @@ namespace MikaUI
                 }
             }
 
-            static void RecoverCanvas(Canvas canvas)
-            {
-                canvas.enabled = false;
-                canvas.gameObject.SetActive(false);
-            }
+        }
+
+        static void RecoverCanvas(Canvas canvas)
+        {
+            canvas.enabled = false;
+            canvas.gameObject.SetActive(false);
         }
 
 

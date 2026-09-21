@@ -244,6 +244,37 @@ namespace Tests.Core
         }
     }
 
+    internal sealed class ThrowingCreatePlugin :
+        IPlugin<DummyUI, DummyContainer, object>,
+        IPluginUICreatedHandler<DummyUI, DummyContainer, object>,
+        IPluginUIWillRecoveryHandler<DummyUI, DummyContainer>,
+        IPluginUIRecoveredHandler
+    {
+        public List<EventType> Events { get; } = new();
+
+        public int SortingOrder => 0;
+
+        public void Install(UIManager<DummyUI, DummyContainer, object> manager) { }
+
+        public void Uninstall(UIManager<DummyUI, DummyContainer, object> manager) { }
+
+        public void OnUICreated<T>(string name, UIControlToken<T, DummyContainer> token, DummyContainer container, IBaseUI parentUI, object slotRectConfigs, DummyUI template) where T : DummyUI, IVisualUI
+        {
+            Events.Add(EventType.Created);
+            throw new InvalidOperationException("Simulated create failure.");
+        }
+
+        public void OnUIWillRecovery<T>(string name, UIControlToken<T, DummyContainer> token) where T : DummyUI, IVisualUI
+        {
+            Events.Add(EventType.WillRecovery);
+        }
+
+        public void OnUIRecovered(string name, Guid tokenID)
+        {
+            Events.Add(EventType.Recovered);
+        }
+    }
+
     internal sealed class TreeRecordingPlugin :
         IPlugin<DummyUI, DummyContainer, object>,
         IPluginUICreatedHandler<DummyUI, DummyContainer, object>,

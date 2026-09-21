@@ -81,6 +81,7 @@ namespace MikaUI
             }
             catch (Exception e)
             {
+                CanvasProvider.RecoverIfUnused(sortingOrder);
                 Debug.LogError(e);
                 throw;
             }
