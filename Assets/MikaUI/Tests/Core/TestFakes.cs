@@ -16,7 +16,7 @@ namespace Tests.Core
             ICanvasProvider canvasProvider,
             IEnumerable<IPlugin<DummyUI, DummyContainer, object>> plugins,
             Logger logger)
-            : base(uiElementProvider, plugins, logger)
+            : base(uiElementProvider, new DummyContainer(), plugins, logger)
         {
             CanvasProvider = canvasProvider;
         }

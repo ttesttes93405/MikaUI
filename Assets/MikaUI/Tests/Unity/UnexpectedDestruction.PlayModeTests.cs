@@ -14,6 +14,7 @@ namespace Tests.Unity
         GameObject canvasRootObject;
         GameObject canvasTemplateObject;
         GameObject poolRootObject;
+        GameObject externalContainerObject;
         GameObject uiTemplateObject;
         UnityUIManager manager;
 
@@ -30,7 +31,7 @@ namespace Tests.Unity
             var childElementId = childToken.ElementID;
 
             UnityEngine.Object.Destroy(parentUI.gameObject);
-            yield return null;
+            yield return WaitUntilDisposed(parentToken);
 
             Assert.That(parentUI == null, Is.True);
             Assert.That(childUI == null, Is.True);
@@ -66,6 +67,34 @@ namespace Tests.Unity
             replacementToken.Dispose();
         }
 
+        [UnityTest]
+        public IEnumerator DestroyingManagedParent_RecoversExternalChildNormally()
+        {
+            CreateManager();
+
+            var parentToken = CreateRoot();
+            var parentUI = parentToken.UI;
+            var childToken = CreateChildInExternalContainer(parentToken);
+            var childUI = childToken.UI;
+            var childElementId = childToken.ElementID;
+
+            UnityEngine.Object.Destroy(parentUI.gameObject);
+            yield return WaitUntilDisposed(parentToken);
+
+            Assert.That(parentUI == null, Is.True);
+            Assert.That(childUI == null, Is.False);
+            Assert.That(parentToken.IsDisposed, Is.True);
+            Assert.That(childToken.IsDisposed, Is.True);
+            Assert.That(ReusableTestUI.CleanupCount, Is.EqualTo(1));
+            Assert.That(childUI.transform.parent, Is.EqualTo(poolRootObject.transform));
+
+            var replacementToken = CreateRoot();
+            Assert.That(replacementToken.UI, Is.SameAs(childUI));
+            Assert.That(replacementToken.ElementID, Is.EqualTo(childElementId));
+
+            replacementToken.Dispose();
+        }
+
         [UnityTearDown]
         public IEnumerator TearDown()
         {
@@ -76,6 +105,7 @@ namespace Tests.Unity
             DestroyObject(canvasTemplateObject);
             DestroyObject(canvasRootObject);
             DestroyObject(poolRootObject);
+            DestroyObject(externalContainerObject);
 
             yield return null;
         }
@@ -86,6 +116,7 @@ namespace Tests.Unity
             canvasRootObject = new GameObject("Canvas Root", typeof(RectTransform));
             canvasTemplateObject = new GameObject("Canvas Template", typeof(RectTransform), typeof(Canvas));
             poolRootObject = new GameObject("Pool Root", typeof(RectTransform));
+            externalContainerObject = new GameObject("External Container", typeof(RectTransform));
             uiTemplateObject = new GameObject("Reusable UI Template", typeof(RectTransform), typeof(ReusableTestUI));
 
             var source = new TestUIElementSource("", uiTemplateObject.GetComponent<ReusableTestUI>());
@@ -111,6 +142,12 @@ namespace Tests.Unity
             return WaitFor(manager.Create<ReusableTestUI>(slot).ToTask());
         }
 
+        UIControlToken<ReusableTestUI, Transform> CreateChildInExternalContainer(UIControlToken<ReusableTestUI, Transform> parentToken)
+        {
+            var slot = new VisualSlot(parentToken.UI, externalContainerObject.transform);
+            return WaitFor(manager.Create<ReusableTestUI>(slot).ToTask());
+        }
+
         static T WaitFor<T>(Task<T> task)
         {
             Assert.That(task.IsCompleted, Is.True, "The default test provider completes synchronously.");
@@ -124,6 +161,21 @@ namespace Tests.Unity
             {
                 UnityEngine.Object.Destroy(target);
             }
+        }
+
+        static IEnumerator WaitUntilDisposed(UIControlToken token, int maxFrames = 10)
+        {
+            for (var frame = 0; frame < maxFrames; frame++)
+            {
+                if (token.IsDisposed)
+                {
+                    yield break;
+                }
+
+                yield return null;
+            }
+
+            Assert.Fail($"Token {token.TokenID} was not disposed within {maxFrames} frames.");
         }
 
         sealed class TestUIElementSource : DefaultUIElementProvider.IUIElementSource

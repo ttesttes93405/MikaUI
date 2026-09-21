@@ -10,7 +10,6 @@ namespace MikaUI
 
     public sealed class UnityUIManager : MikaUI.UIManager<MonoBehaviour, Transform, SlotRectConfigs>
     {
-
         public CanvasProvider CanvasProvider { get; private set; }
 
 
@@ -23,6 +22,7 @@ namespace MikaUI
             Logger logger = null
             ) : base(
                 uiElementProvider,
+                canvasRoot,
                 plugins,
                 logger)
         {

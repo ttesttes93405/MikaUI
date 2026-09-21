@@ -1,9 +1,12 @@
 using System;
-using UnityEngine;
 using System.Collections.Generic;
+using System.Collections;
+using UnityEngine;
 
 namespace MikaUI.Plugin
 {
+    sealed class UnexpectedDestructionRunner : MonoBehaviour { }
+
     public class DestroyDetectPlugin :
         IPlugin<MonoBehaviour, Transform, SlotRectConfigs>,
         IPluginUICreatedHandler<MonoBehaviour, Transform, SlotRectConfigs>,
@@ -12,10 +15,15 @@ namespace MikaUI.Plugin
     {
         public int SortingOrder => 1;
 
-        int managerHashCode;
         UIManager<MonoBehaviour, Transform, SlotRectConfigs> manager;
+        int managerHashCode;
         readonly Action<UIControlToken> onUIDestroyAction;
         readonly Dictionary<Guid, Action> unsubscribeDetects = new();
+        readonly Queue<UIControlToken> unexpectedDestructionTokens = new();
+        readonly HashSet<Guid> queuedTokenIds = new();
+        UnexpectedDestructionRunner runner;
+        Coroutine processing;
+        bool isUninstalled;
 
         public DestroyDetectPlugin(Action<UIControlToken> onUIDestroyAction)
         {
@@ -24,8 +32,13 @@ namespace MikaUI.Plugin
 
         public void Install(UIManager<MonoBehaviour, Transform, SlotRectConfigs> manager)
         {
-            this.manager = manager;
+            this.manager = manager ?? throw new ArgumentNullException(nameof(manager));
             managerHashCode = manager.GetHashCode();
+            isUninstalled = false;
+
+            var runnerObject = new GameObject("[MikaUI] Destroy Detection Runner");
+            runnerObject.transform.SetParent(manager.RootContainer, false);
+            runner = runnerObject.AddComponent<UnexpectedDestructionRunner>();
         }
 
         public void Uninstall(UIManager<MonoBehaviour, Transform, SlotRectConfigs> manager)
@@ -35,6 +48,17 @@ namespace MikaUI.Plugin
                 unsubscribe?.Invoke();
             }
             unsubscribeDetects.Clear();
+
+            isUninstalled = true;
+            unexpectedDestructionTokens.Clear();
+            queuedTokenIds.Clear();
+            if (runner != null)
+            {
+                runner.StopAllCoroutines();
+                UnityEngine.Object.Destroy(runner.gameObject);
+                runner = null;
+            }
+            processing = null;
             this.manager = null;
         }
 
@@ -53,7 +77,7 @@ namespace MikaUI.Plugin
                         }
                         finally
                         {
-                            manager?.HandleUnexpectedDestruction(token);
+                            EnqueueUnexpectedDestruction(token);
                         }
                     })
             );
@@ -77,6 +101,48 @@ namespace MikaUI.Plugin
                 unsubscribe?.Invoke();
                 unsubscribeDetects.Remove(tokenID);
             }
+        }
+
+        void EnqueueUnexpectedDestruction(UIControlToken token)
+        {
+            if (isUninstalled || token == null || token.IsDisposed || queuedTokenIds.Add(token.TokenID) == false)
+            {
+                return;
+            }
+
+            unexpectedDestructionTokens.Enqueue(token);
+            processing ??= runner.StartCoroutine(ProcessUnexpectedDestructions());
+        }
+
+        IEnumerator ProcessUnexpectedDestructions()
+        {
+            while (isUninstalled == false && unexpectedDestructionTokens.Count > 0)
+            {
+                // OnDestroy runs before Unity has completed its destruction cycle.
+                // Fake-null is only reliable on the following frame.
+                yield return null;
+
+                var count = unexpectedDestructionTokens.Count;
+                for (var i = 0; i < count; i++)
+                {
+                    var token = unexpectedDestructionTokens.Dequeue();
+                    queuedTokenIds.Remove(token.TokenID);
+
+                    if (isUninstalled == false && manager?.IsDisposed == false && token.IsDisposed == false)
+                    {
+                        try
+                        {
+                            manager.HandleUnexpectedDestruction(token);
+                        }
+                        catch (Exception e)
+                        {
+                            Debug.LogException(e);
+                        }
+                    }
+                }
+            }
+
+            processing = null;
         }
     }
 }

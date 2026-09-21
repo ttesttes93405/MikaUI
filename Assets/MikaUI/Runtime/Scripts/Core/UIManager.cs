@@ -36,12 +36,18 @@ namespace MikaUI
 
         public event Action<RecoveryErrorInfo> OnRecoveryError;
         public event Action<UnexpectedDestructionInfo> OnUnexpectedDestruction;
+        public TContainer RootContainer { get; }
         public bool IsDisposed => isDisposed;
 
-        public UIManager(IUIElementProvider<TUI, TContainer> uiElementProvider, IEnumerable<IPlugin<TUI, TContainer, TSlotConfig>> plugins, Logger logger)
+        public UIManager(
+            IUIElementProvider<TUI, TContainer> uiElementProvider,
+            TContainer rootContainer,
+            IEnumerable<IPlugin<TUI, TContainer, TSlotConfig>> plugins,
+            Logger logger)
         {
             this.uiElementProvider = uiElementProvider;
             this.logger = logger;
+            RootContainer = rootContainer ?? throw new ArgumentNullException(nameof(rootContainer));
 
             nodeManager = new NodeManager(logger);
 

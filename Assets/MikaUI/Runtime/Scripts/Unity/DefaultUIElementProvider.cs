@@ -61,6 +61,30 @@ namespace MikaUI
                 Queue<IVisualUI> uiPool = new();
                 Dictionary<IVisualUI, Guid> uiIDMap = new();
 
+                Action<IVisualUI> recovery = (ui) =>
+                {
+                    if ((ui as MonoBehaviour) == null)
+                    {
+                        uiCleaner.Remove(ui);
+                        uiIDMap.Remove(ui);
+                        return;
+                    }
+
+                    if (ui is IUIEffectable reuseable)
+                    {
+                        if (uiCleaner.TryGetValue(ui, out var cleaner))
+                        {
+                            cleaner?.Invoke();
+                            uiCleaner.Remove(ui);
+                        }
+                        uiPool.Enqueue(ui);
+                        (ui as MonoBehaviour).transform.SetParent(poolRoot, false);
+                    }
+                    else
+                    {
+                        UnityEngine.Object.Destroy((ui as MonoBehaviour).gameObject);
+                    }
+                };
 
                 return new UIElement<Transform>
                 {
@@ -106,8 +130,12 @@ namespace MikaUI
                             }
                         }
                     },
-                    Recovery = (ui) =>
+                    Recovery = recovery,
+                    UnexpectedRecovery = (ui) =>
                     {
+                        // OnDestroy can reach a managed child before Unity has
+                        // destroyed it. Unity's fake-null check is the sole source
+                        // of truth: a surviving child follows normal recovery.
                         if ((ui as MonoBehaviour) == null)
                         {
                             uiCleaner.Remove(ui);
@@ -115,29 +143,7 @@ namespace MikaUI
                             return;
                         }
 
-                        if (ui is IUIEffectable reuseable)
-                        {
-                            if (uiCleaner.TryGetValue(ui, out var cleaner))
-                            {
-                                cleaner?.Invoke();
-                                uiCleaner.Remove(ui);
-                            }
-                            uiPool.Enqueue(ui);
-                            (ui as MonoBehaviour).transform.SetParent(poolRoot, false);
-                        }
-                        else
-                        {
-                            UnityEngine.Object.Destroy((ui as MonoBehaviour).gameObject);
-                        }
-                    },
-                    UnexpectedRecovery = (ui) =>
-                    {
-                        // This path runs from OnDestroy. A managed child is always
-                        // beneath its parent Transform, so Unity will destroy the
-                        // whole visual subtree. Only MikaUI bookkeeping is safe here:
-                        // never touch Transform, return to a pool, or destroy again.
-                        uiCleaner.Remove(ui);
-                        uiIDMap.Remove(ui);
+                        recovery(ui);
                     },
                 };
             }
