@@ -5,18 +5,27 @@
 /[Ll]ibrary/
 /[Tt]emp/
 /[Oo]bj/
-/[Bb]uild/
-/[Bb]uilds/
 /[Ll]ogs/
-/[Mm]emoryCaptures/
-/Packages/packages-lock.json
-/Assets/FR2_Cache.asset
-/Assets/FR2_Cache.asset.meta
 /UserSettings/
+/Unity/[Ll]ibrary/
+/Unity/[Tt]emp/
+/Unity/[Oo]bj/
+/Unity/[Bb]uild/
+/Unity/[Bb]uilds/
+/Unity/[Ll]ogs/
+/Unity/[Mm]emoryCaptures/
+/Unity/Packages/packages-lock.json
+/Unity/Assets/FR2_Cache.asset
+/Unity/Assets/FR2_Cache.asset.meta
+/Unity/UserSettings/
+/Core/bin/
+/Core/obj/
+/Core.Test/bin/
+/Core.Test/obj/
 
 
 # Asset meta data should only be ignored when the corresponding asset is also ignored
-!/[Aa]ssets/**/*.meta
+!/Unity/[Aa]ssets/**/*.meta
 
 
 # Visual Studio cache directory
@@ -60,10 +69,12 @@ sysinfo.txt
 
 *.csproj
 *.sln
+!/Core/*.csproj
+!/Core.Test/*.csproj
+!/MikaUI.sln
 
 
 **/.DS_Store
 *.DS_Store
 .DS_Store
 .DS_Store?
-
