@@ -7,25 +7,25 @@
 /[Oo]bj/
 /[Ll]ogs/
 /UserSettings/
-/Unity/[Ll]ibrary/
-/Unity/[Tt]emp/
-/Unity/[Oo]bj/
-/Unity/[Bb]uild/
-/Unity/[Bb]uilds/
-/Unity/[Ll]ogs/
-/Unity/[Mm]emoryCaptures/
-/Unity/Packages/packages-lock.json
-/Unity/Assets/FR2_Cache.asset
-/Unity/Assets/FR2_Cache.asset.meta
-/Unity/UserSettings/
-/Core/bin/
-/Core/obj/
-/Core.Test/bin/
-/Core.Test/obj/
+/MikaUI.Unity/[Ll]ibrary/
+/MikaUI.Unity/[Tt]emp/
+/MikaUI.Unity/[Oo]bj/
+/MikaUI.Unity/[Bb]uild/
+/MikaUI.Unity/[Bb]uilds/
+/MikaUI.Unity/[Ll]ogs/
+/MikaUI.Unity/[Mm]emoryCaptures/
+/MikaUI.Unity/Packages/packages-lock.json
+/MikaUI.Unity/Assets/FR2_Cache.asset
+/MikaUI.Unity/Assets/FR2_Cache.asset.meta
+/MikaUI.Unity/UserSettings/
+/MikaUI.Core/bin/
+/MikaUI.Core/obj/
+/MikaUI.Core.Test/bin/
+/MikaUI.Core.Test/obj/
 
 
 # Asset meta data should only be ignored when the corresponding asset is also ignored
-!/Unity/[Aa]ssets/**/*.meta
+!/MikaUI.Unity/[Aa]ssets/**/*.meta
 
 
 # Visual Studio cache directory
@@ -69,8 +69,8 @@ sysinfo.txt
 
 *.csproj
 *.sln
-!/Core/*.csproj
-!/Core.Test/*.csproj
+!/MikaUI.Core/*.csproj
+!/MikaUI.Core.Test/*.csproj
 !/MikaUI.sln
 
 

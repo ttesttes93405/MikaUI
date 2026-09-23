@@ -11,7 +11,7 @@
   </ItemGroup>
   <Target Name="CopyReleaseToUnity" AfterTargets="Build" Condition="'$(Configuration)' == 'Release'">
     <PropertyGroup>
-      <UnityCoreDirectory>$(MSBuildProjectDirectory)/../Unity/Assets/MikaUI/Runtime/Plugins</UnityCoreDirectory>
+      <UnityCoreDirectory>$(MSBuildProjectDirectory)/../MikaUI.Unity/Assets/MikaUI/Runtime/Plugins</UnityCoreDirectory>
     </PropertyGroup>
     <MakeDir Directories="$(UnityCoreDirectory)" />
     <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(UnityCoreDirectory)" SkipUnchangedFiles="true" />

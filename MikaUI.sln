@@ -3,13 +3,13 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.0.31903.59
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Core", "Core", "{FBF56CC3-7AE6-AD2D-3F14-7F97FD322CD6}"
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "MikaUI.Core", "MikaUI.Core", "{FBF56CC3-7AE6-AD2D-3F14-7F97FD322CD6}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MikaUI.Core", "Core\MikaUI.Core.csproj", "{8F6A5DD5-2B99-4110-81DE-A596ADCB5E55}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MikaUI.Core", "MikaUI.Core\MikaUI.Core.csproj", "{8F6A5DD5-2B99-4110-81DE-A596ADCB5E55}"
 EndProject
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Core.Test", "Core.Test", "{4629537B-A5AC-3D81-E313-674C48BECFCF}"
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "MikaUI.Core.Test", "MikaUI.Core.Test", "{4629537B-A5AC-3D81-E313-674C48BECFCF}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MikaUI.Core.Test", "Core.Test\MikaUI.Core.Test.csproj", "{68D21B32-886F-4D09-835F-DFDAA5A4B92F}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MikaUI.Core.Test", "MikaUI.Core.Test\MikaUI.Core.Test.csproj", "{68D21B32-886F-4D09-835F-DFDAA5A4B92F}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
