@@ -2,8 +2,7 @@
     "name": "MikaUI.Tests.Unity",
     "rootNamespace": "",
     "references": [
-        "MikaUI.Unity",
-        "MikaUI.Core"
+        "MikaUI.Unity"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

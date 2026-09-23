@@ -2,7 +2,6 @@
     "name": "MikaUI.QuickStart",
     "rootNamespace": "",
     "references": [
-        "GUID:532e88dfcd23e5d42afabf4ee9380384",
         "GUID:fac6dcee6816ce249b1edb2268ac3ef7",
         "GUID:6055be8ebefd69e48b49212b09b47b2f"
     ],

@@ -1,14 +1,14 @@
 {
     "name": "MikaUI.Unity",
     "rootNamespace": "",
-    "references": [
-        "GUID:532e88dfcd23e5d42afabf4ee9380384"
-    ],
+    "references": [],
     "includePlatforms": [],
     "excludePlatforms": [],
     "allowUnsafeCode": false,
-    "overrideReferences": false,
-    "precompiledReferences": [],
+    "overrideReferences": true,
+    "precompiledReferences": [
+        "MikaUI.Core.dll"
+    ],
     "autoReferenced": true,
     "defineConstraints": [],
     "versionDefines": [],
