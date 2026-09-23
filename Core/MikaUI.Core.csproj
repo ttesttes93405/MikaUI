@@ -4,6 +4,7 @@
     <LangVersion>9.0</LangVersion>
     <AssemblyName>MikaUI.Core</AssemblyName>
     <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="Source/**/*.cs" />
