@@ -65,6 +65,8 @@ namespace Tests.Core
         public int UnexpectedRecoveryCount { get; private set; }
         public int VirtualRecoveryCount { get; private set; }
         public bool ThrowOnVirtualCreated { get; set; }
+        public Action OnVisualCreated { get; set; }
+        public Action OnVirtualCreated { get; set; }
         public Exception GetUIElementException { get; set; }
         public Exception GetVirtualUIElementException { get; set; }
 
@@ -91,7 +93,7 @@ namespace Tests.Core
                     CreatedInstances.Add(ui);
                     var elementId = Guid.NewGuid();
 
-                    return MikaTask<(IVisualUI ui, Action onCreated, Guid elementID)>.FromResult((ui, () => { }, elementId));
+                    return MikaTask<(IVisualUI ui, Action onCreated, Guid elementID)>.FromResult((ui, () => OnVisualCreated?.Invoke(), elementId));
                 },
                 Recovery = ui => { RecoveryCount++; },
                 UnexpectedRecovery = ui => { UnexpectedRecoveryCount++; },
@@ -115,6 +117,7 @@ namespace Tests.Core
 
                     void OnCreated()
                     {
+                        OnVirtualCreated?.Invoke();
                         if (ThrowOnVirtualCreated)
                         {
                             throw new InvalidOperationException("Simulated virtual creation failure.");
@@ -374,6 +377,30 @@ namespace Tests.Core
         }
     }
 
+    internal sealed class DisposingTokenCreatePlugin :
+        IPlugin<DummyUI, DummyContainer, object>,
+        IPluginUICreatedHandler<DummyUI, DummyContainer, object>,
+        IPluginVirtualUICreatedHandler
+    {
+        public UIControlToken DisposedToken { get; private set; }
+        public int SortingOrder => 0;
+
+        public void Install(UIManager<DummyUI, DummyContainer, object> manager) { }
+        public void Uninstall(UIManager<DummyUI, DummyContainer, object> manager) { }
+
+        public void OnUICreated<T>(string name, UIControlToken<T, DummyContainer> token, DummyContainer container, IBaseUI parentUI, object slotRectConfigs, DummyUI template) where T : DummyUI, IVisualUI
+        {
+            DisposedToken = token;
+            token.Dispose();
+        }
+
+        public void OnVirtualUICreated<T>(UIControlToken<T> token, IBaseUI parentUI) where T : IVirtualUI, new()
+        {
+            DisposedToken = token;
+            token.Dispose();
+        }
+    }
+
     internal sealed class ThrowingUnexpectedDestructionPlugin :
         IPlugin<DummyUI, DummyContainer, object>,
         IPluginUIUnexpectedDestroyedHandler
@@ -423,6 +450,37 @@ namespace Tests.Core
         public void Uninstall(UIManager<DummyUI, DummyContainer, object> manager)
         {
             UninstallCount++;
+        }
+    }
+
+    internal sealed class InstallLifecyclePlugin : IPlugin<DummyUI, DummyContainer, object>
+    {
+        readonly string name;
+        readonly List<string> events;
+
+        public int SortingOrder { get; }
+        public Exception InstallException { get; set; }
+        public Exception UninstallException { get; set; }
+
+        public InstallLifecyclePlugin(string name, int sortingOrder, List<string> events)
+        {
+            this.name = name;
+            this.events = events;
+            SortingOrder = sortingOrder;
+        }
+
+        public void Install(UIManager<DummyUI, DummyContainer, object> manager)
+        {
+            events.Add($"Install {name}");
+            if (InstallException != null)
+                throw InstallException;
+        }
+
+        public void Uninstall(UIManager<DummyUI, DummyContainer, object> manager)
+        {
+            events.Add($"Uninstall {name}");
+            if (UninstallException != null)
+                throw UninstallException;
         }
     }
 

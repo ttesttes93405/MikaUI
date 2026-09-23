@@ -52,6 +52,32 @@ namespace Tests.Unity
         }
 
         [UnityTest]
+        public IEnumerator DisposingTokenInCreatedPlugin_RecoversCanvasWithoutRunningEffect()
+        {
+            var disposingPlugin = new DisposeFirstCreatedTokenPlugin();
+            CreateManager(disposingPlugin);
+
+            LogAssert.Expect(LogType.Error, new Regex("ControlTokenDisposedException"));
+            var failedCreate = manager.Create<ReusableTestUI>(sortingOrder: 0);
+            Assert.That(failedCreate.IsCompleted, Is.True);
+            Assert.That(failedCreate.IsFaulted, Is.True);
+            Assert.That(failedCreate.Exception.InnerException, Is.TypeOf<ControlTokenDisposedException>());
+            Assert.That(disposingPlugin.DisposedToken.IsDisposed, Is.True);
+            Assert.That(ReusableTestUI.EffectCount, Is.Zero);
+
+            var canvas = canvasRootObject.GetComponentInChildren<Canvas>(true);
+            Assert.That(canvas, Is.Not.Null);
+            Assert.That(canvas.enabled, Is.False);
+            Assert.That(canvas.gameObject.activeSelf, Is.False);
+
+            // An unused canvas can be reassigned to a different sorting order.
+            var nextToken = WaitFor(manager.Create<ReusableTestUI>(sortingOrder: 1));
+            Assert.That(nextToken.UI.transform.parent.GetComponent<Canvas>(), Is.SameAs(canvas));
+            nextToken.Dispose();
+            yield return null;
+        }
+
+        [UnityTest]
         public IEnumerator DestroyingPooledUi_DiscardsItBeforeTheNextCreate()
         {
             CreateManager();
@@ -128,7 +154,7 @@ namespace Tests.Unity
             yield return null;
         }
 
-        void CreateManager()
+        void CreateManager(IPlugin<MonoBehaviour, Transform, SlotRectConfigs> additionalPlugin = null)
         {
             ReusableTestUI.ResetCounters();
             canvasRootObject = new GameObject("Canvas Root", typeof(RectTransform));
@@ -141,13 +167,14 @@ namespace Tests.Unity
             var canvasProvider = new CanvasProvider(
                 canvasRootObject.GetComponent<RectTransform>(),
                 canvasTemplateObject.GetComponent<Canvas>());
+            var destroyDetectPlugin = new DestroyDetectPlugin(canvasProvider, _ => { });
+            var plugins = additionalPlugin == null
+                ? new IPlugin<MonoBehaviour, Transform, SlotRectConfigs>[] { destroyDetectPlugin }
+                : new IPlugin<MonoBehaviour, Transform, SlotRectConfigs>[] { additionalPlugin, destroyDetectPlugin };
             manager = new UnityUIManager(
                 new DefaultUIElementProvider(new[] { source }, poolRootObject.transform),
                 canvasProvider,
-                new IPlugin<MonoBehaviour, Transform, SlotRectConfigs>[]
-                {
-                    new DestroyDetectPlugin(canvasProvider, _ => { }),
-                });
+                plugins);
         }
 
         UIControlToken<ReusableTestUI, Transform> CreateRoot()
@@ -209,19 +236,42 @@ namespace Tests.Unity
             }
         }
 
+        sealed class DisposeFirstCreatedTokenPlugin :
+            IPlugin<MonoBehaviour, Transform, SlotRectConfigs>,
+            IPluginUICreatedHandler<MonoBehaviour, Transform, SlotRectConfigs>
+        {
+            public int SortingOrder => 0;
+            public UIControlToken DisposedToken { get; private set; }
+
+            public void Install(UIManager<MonoBehaviour, Transform, SlotRectConfigs> manager) { }
+            public void Uninstall(UIManager<MonoBehaviour, Transform, SlotRectConfigs> manager) { }
+
+            public void OnUICreated<T>(string name, UIControlToken<T, Transform> token, Transform container, IBaseUI parentUI, SlotRectConfigs slotRectConfigs, MonoBehaviour template) where T : MonoBehaviour, IVisualUI
+            {
+                if (DisposedToken != null)
+                    return;
+
+                DisposedToken = token;
+                token.Dispose();
+            }
+        }
+
     }
 
     public sealed class ReusableTestUI : MonoBehaviour, IVisualUI, IUIEffectable
     {
         public static int CleanupCount { get; private set; }
+        public static int EffectCount { get; private set; }
 
         public static void ResetCounters()
         {
             CleanupCount = 0;
+            EffectCount = 0;
         }
 
         public Action UseEffect()
         {
+            EffectCount++;
             return () => CleanupCount++;
         }
     }

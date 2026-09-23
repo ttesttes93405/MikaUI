@@ -35,9 +35,32 @@ namespace MikaUI
 
         public void Install(UIManager<TUI, TContainer, TSlotConfig> manager)
         {
-            foreach (var plugin in plugins)
+            var installedPlugins = new List<IPlugin<TUI, TContainer, TSlotConfig>>(plugins.Length);
+            try
             {
-                plugin.Install(manager);
+                foreach (var plugin in plugins)
+                {
+                    plugin.Install(manager);
+                    installedPlugins.Add(plugin);
+                }
+            }
+            catch
+            {
+                // The caller never receives a manager when construction fails.
+                // Only plugins whose Install completed can be rolled back.
+                for (var i = installedPlugins.Count - 1; i >= 0; i--)
+                {
+                    try
+                    {
+                        installedPlugins[i].Uninstall(manager);
+                    }
+                    catch
+                    {
+                        // Keep cleaning up and preserve the installation failure.
+                    }
+                }
+
+                throw;
             }
         }
 
@@ -73,7 +96,11 @@ namespace MikaUI
             foreach (var plugin in plugins)
             {
                 if (plugin is IPluginUICreatedHandler<TUI, TContainer, TSlotConfig> pluginUICreatedHandler)
+                {
                     pluginUICreatedHandler.OnUICreated(name, token, container, parentUI, slotRectConfigs, template);
+                    if (token.IsDisposed)
+                        break;
+                }
             }
         }
 
@@ -110,7 +137,11 @@ namespace MikaUI
             foreach (var plugin in plugins)
             {
                 if (plugin is IPluginVirtualUICreatedHandler pluginVirtualUICreatedHandler)
+                {
                     pluginVirtualUICreatedHandler.OnVirtualUICreated(token, parentUI);
+                    if (token.IsDisposed)
+                        break;
+                }
             }
         }
 

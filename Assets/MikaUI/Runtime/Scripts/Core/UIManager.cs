@@ -176,7 +176,7 @@ namespace MikaUI
 
                 UICreated(token);
 
-                ThrowIfDisposed();
+                ThrowIfCreationAborted(token);
 
                 return token;
             }
@@ -195,6 +195,7 @@ namespace MikaUI
             void UICreated(UIControlToken<T, TContainer> token)
             {
                 combinedPlugin.OnUICreated(name, token, container, parentUI, slotRectConfigs, uiElement.GetTemplate() as TUI);
+                ThrowIfCreationAborted(token);
                 onCreated?.Invoke();
             }
 
@@ -279,6 +280,15 @@ namespace MikaUI
             if (isDisposed)
             {
                 throw new ObjectDisposedException(GetType().Name);
+            }
+        }
+
+        void ThrowIfCreationAborted(UIControlToken token)
+        {
+            ThrowIfDisposed();
+            if (token.IsDisposed)
+            {
+                throw new ControlTokenDisposedException(token);
             }
         }
 
@@ -407,9 +417,10 @@ namespace MikaUI
                 nodeAttached = true;
 
                 combinedPlugin.OnVirtualUICreated(token, parentUI);
+                ThrowIfCreationAborted(token);
                 onCreated?.Invoke();
 
-                ThrowIfDisposed();
+                ThrowIfCreationAborted(token);
 
                 return token;
             }

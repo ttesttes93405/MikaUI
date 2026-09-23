@@ -105,12 +105,22 @@ namespace MikaUI
             {
                 var token = await Create<T>(slot, slotRectConfigs: null, name: name);
 
-                CanvasProvider.Register(token.TokenID, sortingOrder);
+                if (token.IsDisposed)
+                {
+                    throw new ControlTokenDisposedException(token);
+                }
 
                 token.OnDispose += () =>
                 {
                     CanvasProvider.Unregister(token.TokenID);
                 };
+
+                CanvasProvider.Register(token.TokenID, sortingOrder);
+
+                if (token.IsDisposed)
+                {
+                    throw new ControlTokenDisposedException(token);
+                }
 
                 return token;
             }

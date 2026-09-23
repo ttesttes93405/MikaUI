@@ -238,6 +238,66 @@ namespace Tests.Core
         }
 
         [Test]
+        public void Create_WhenPluginDisposesToken_StopsCreationAndDoesNotRegisterCanvas()
+        {
+            var onCreatedCount = 0;
+            var provider = new FakeUIElementProvider { OnVisualCreated = () => onCreatedCount++ };
+            var canvasProvider = new FakeCanvasProvider();
+            var disposingPlugin = new DisposingTokenCreatePlugin();
+            var laterPlugin = new RecordingPlugin();
+            var manager = new TestableUIManager(provider, canvasProvider,
+                new IPlugin<DummyUI, DummyContainer, object>[] { disposingPlugin, laterPlugin }, DummyLogger.Create());
+
+            try
+            {
+                var exception = Assert.Throws<AggregateException>(() => manager.CreateWithSorting().WaitResult());
+
+                Assert.That(exception.InnerExceptions[0], Is.TypeOf<ControlTokenDisposedException>());
+                Assert.That(disposingPlugin.DisposedToken.IsDisposed, Is.True);
+                Assert.That(onCreatedCount, Is.Zero);
+                Assert.That(laterPlugin.Events, Does.Not.Contain(EventType.Created));
+                Assert.That(canvasProvider.RegisteredIds, Is.Empty);
+                Assert.That(provider.RecoveryCount, Is.EqualTo(1));
+
+                manager.Dispose();
+                Assert.That(provider.RecoveryCount, Is.EqualTo(1));
+            }
+            finally
+            {
+                manager.Dispose();
+            }
+        }
+
+        [Test]
+        public void CreateVirtual_WhenPluginDisposesToken_StopsCreation()
+        {
+            var onCreatedCount = 0;
+            var provider = new FakeUIElementProvider { OnVirtualCreated = () => onCreatedCount++ };
+            var disposingPlugin = new DisposingTokenCreatePlugin();
+            var laterPlugin = new RecordingPlugin();
+            var manager = new TestableUIManager(provider, new FakeCanvasProvider(),
+                new IPlugin<DummyUI, DummyContainer, object>[] { disposingPlugin, laterPlugin }, DummyLogger.Create());
+
+            try
+            {
+                var exception = Assert.Throws<AggregateException>(() => manager.CreateVirtual<DummyVirtualUI>().WaitResult());
+
+                Assert.That(exception.InnerExceptions[0], Is.TypeOf<ControlTokenDisposedException>());
+                Assert.That(disposingPlugin.DisposedToken.IsDisposed, Is.True);
+                Assert.That(onCreatedCount, Is.Zero);
+                Assert.That(laterPlugin.Events, Does.Not.Contain(EventType.VirtualCreated));
+                Assert.That(provider.VirtualRecoveryCount, Is.EqualTo(1));
+
+                manager.Dispose();
+                Assert.That(provider.VirtualRecoveryCount, Is.EqualTo(1));
+            }
+            finally
+            {
+                manager.Dispose();
+            }
+        }
+
+        [Test]
         public void Dispose_IsIdempotent_AndFutureCreatesFail()
         {
             var provider = new FakeUIElementProvider();
@@ -289,6 +349,54 @@ namespace Tests.Core
             Assert.DoesNotThrow(() => manager.Dispose());
             Assert.That(laterPlugin.UninstallCount, Is.EqualTo(1));
             Assert.That(loggedErrors.Single(), Is.SameAs(throwingPlugin.Exception));
+        }
+
+        [Test]
+        public void Constructor_WhenSecondPluginInstallFails_UninstallsOnlyCompletedPlugins()
+        {
+            var events = new List<string>();
+            var first = new InstallLifecyclePlugin("first", 0, events);
+            var second = new InstallLifecyclePlugin("second", 1, events)
+            {
+                InstallException = new InvalidOperationException("Simulated install failure.")
+            };
+            var third = new InstallLifecyclePlugin("third", 2, events);
+
+            var exception = Assert.Throws<InvalidOperationException>(() => new TestableUIManager(
+                new FakeUIElementProvider(),
+                new FakeCanvasProvider(),
+                new IPlugin<DummyUI, DummyContainer, object>[] { third, second, first },
+                DummyLogger.Create()));
+
+            Assert.That(exception, Is.SameAs(second.InstallException));
+            CollectionAssert.AreEqual(new[] { "Install first", "Install second", "Uninstall first" }, events);
+        }
+
+        [Test]
+        public void Constructor_WhenRollbackUninstallFails_PreservesInstallFailureAndContinuesRollback()
+        {
+            var events = new List<string>();
+            var first = new InstallLifecyclePlugin("first", 0, events);
+            var second = new InstallLifecyclePlugin("second", 1, events)
+            {
+                UninstallException = new InvalidOperationException("Simulated uninstall failure.")
+            };
+            var third = new InstallLifecyclePlugin("third", 2, events)
+            {
+                InstallException = new InvalidOperationException("Simulated install failure.")
+            };
+
+            var exception = Assert.Throws<InvalidOperationException>(() => new TestableUIManager(
+                new FakeUIElementProvider(),
+                new FakeCanvasProvider(),
+                new IPlugin<DummyUI, DummyContainer, object>[] { first, second, third },
+                DummyLogger.Create()));
+
+            Assert.That(exception, Is.SameAs(third.InstallException));
+            CollectionAssert.AreEqual(new[]
+            {
+                "Install first", "Install second", "Install third", "Uninstall second", "Uninstall first"
+            }, events);
         }
 
         [Test]
