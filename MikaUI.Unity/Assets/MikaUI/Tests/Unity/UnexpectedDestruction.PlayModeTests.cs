@@ -78,6 +78,44 @@ namespace Tests.Unity
         }
 
         [UnityTest]
+        public IEnumerator CreatingAnotherOrderInCreatedPlugin_KeepsPendingCanvasReserved()
+        {
+            var creatingPlugin = new CreateOtherOrderInCreatedPlugin();
+            CreateManager(creatingPlugin);
+
+            var firstToken = WaitFor(manager.Create<ReusableTestUI>(sortingOrder: 0));
+            var secondToken = creatingPlugin.SecondToken;
+            Assert.That(secondToken, Is.Not.Null);
+
+            var firstCanvas = firstToken.UI.transform.parent.GetComponent<Canvas>();
+            var secondCanvas = secondToken.UI.transform.parent.GetComponent<Canvas>();
+            Assert.That(secondCanvas, Is.Not.SameAs(firstCanvas));
+            Assert.That(firstCanvas.sortingOrder, Is.EqualTo(0));
+            Assert.That(secondCanvas.sortingOrder, Is.EqualTo(1));
+
+            firstToken.Dispose();
+            Assert.That(firstCanvas.gameObject.activeSelf, Is.False);
+            Assert.That(secondCanvas.gameObject.activeSelf, Is.True);
+
+            secondToken.Dispose();
+            yield return null;
+        }
+
+        [UnityTest]
+        public IEnumerator DisposingRegisteredToken_DoesNotRecoverCanvasWithPendingCreation()
+        {
+            var creatingPlugin = new CreateAndDisposeSameOrderInCreatedPlugin();
+            CreateManager(creatingPlugin);
+
+            var pendingToken = WaitFor(manager.Create<ReusableTestUI>(sortingOrder: 0));
+            Assert.That(creatingPlugin.CanvasStayedActive, Is.True);
+            Assert.That(pendingToken.UI.transform.parent.GetComponent<Canvas>().gameObject.activeSelf, Is.True);
+
+            pendingToken.Dispose();
+            yield return null;
+        }
+
+        [UnityTest]
         public IEnumerator DestroyingPooledUi_DiscardsItBeforeTheNextCreate()
         {
             CreateManager();
@@ -253,6 +291,62 @@ namespace Tests.Unity
 
                 DisposedToken = token;
                 token.Dispose();
+            }
+        }
+
+        sealed class CreateOtherOrderInCreatedPlugin :
+            IPlugin<MonoBehaviour, Transform, SlotRectConfigs>,
+            IPluginUICreatedHandler<MonoBehaviour, Transform, SlotRectConfigs>
+        {
+            UnityUIManager manager;
+            bool hasStartedSecondCreate;
+
+            public int SortingOrder => 0;
+            public UIControlToken<ReusableTestUI, Transform> SecondToken { get; private set; }
+
+            public void Install(UIManager<MonoBehaviour, Transform, SlotRectConfigs> manager)
+            {
+                this.manager = (UnityUIManager)manager;
+            }
+
+            public void Uninstall(UIManager<MonoBehaviour, Transform, SlotRectConfigs> manager) { }
+
+            public void OnUICreated<T>(string name, UIControlToken<T, Transform> token, Transform container, IBaseUI parentUI, SlotRectConfigs slotRectConfigs, MonoBehaviour template) where T : MonoBehaviour, IVisualUI
+            {
+                if (hasStartedSecondCreate)
+                    return;
+
+                hasStartedSecondCreate = true;
+                SecondToken = manager.Create<ReusableTestUI>(sortingOrder: 1).GetAwaiter().GetResult();
+            }
+        }
+
+        sealed class CreateAndDisposeSameOrderInCreatedPlugin :
+            IPlugin<MonoBehaviour, Transform, SlotRectConfigs>,
+            IPluginUICreatedHandler<MonoBehaviour, Transform, SlotRectConfigs>
+        {
+            UnityUIManager manager;
+            bool hasStartedSecondCreate;
+
+            public int SortingOrder => 0;
+            public bool CanvasStayedActive { get; private set; }
+
+            public void Install(UIManager<MonoBehaviour, Transform, SlotRectConfigs> manager)
+            {
+                this.manager = (UnityUIManager)manager;
+            }
+
+            public void Uninstall(UIManager<MonoBehaviour, Transform, SlotRectConfigs> manager) { }
+
+            public void OnUICreated<T>(string name, UIControlToken<T, Transform> token, Transform container, IBaseUI parentUI, SlotRectConfigs slotRectConfigs, MonoBehaviour template) where T : MonoBehaviour, IVisualUI
+            {
+                if (hasStartedSecondCreate)
+                    return;
+
+                hasStartedSecondCreate = true;
+                var secondToken = manager.Create<ReusableTestUI>(sortingOrder: 0).GetAwaiter().GetResult();
+                secondToken.Dispose();
+                CanvasStayedActive = container.GetComponent<Canvas>().gameObject.activeSelf;
             }
         }
 

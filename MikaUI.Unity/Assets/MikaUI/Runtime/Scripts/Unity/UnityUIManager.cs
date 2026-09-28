@@ -98,11 +98,11 @@ namespace MikaUI
 
         public async Task<UIControlToken<T, Transform>> Create<T>(int sortingOrder, string name = "") where T : MonoBehaviour, IVisualUI
         {
-            var canvas = CanvasProvider.Request(sortingOrder);
-            var slot = new VisualSlot((IVirtualUI)null, canvas.transform);
+            using var canvasRequest = CanvasProvider.Request(sortingOrder);
 
             try
             {
+                var slot = new VisualSlot((IVirtualUI)null, canvasRequest.Canvas.transform);
                 var token = await Create<T>(slot, slotRectConfigs: null, name: name);
 
                 if (token.IsDisposed)
@@ -126,7 +126,6 @@ namespace MikaUI
             }
             catch (Exception e)
             {
-                CanvasProvider.RecoverIfUnused(sortingOrder);
                 Debug.LogError(e);
                 throw;
             }

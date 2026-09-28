@@ -12,6 +12,7 @@ namespace MikaUI
         readonly Canvas canvasTemplate;
         readonly Dictionary<int, Canvas> pool = new();
         readonly Dictionary<int, HashSet<Guid>> canvasUsingRegistry = new();
+        readonly Dictionary<int, int> pendingRequests = new();
 
 
         public float DefaultScaleFactor => canvasTemplate.scaleFactor;
@@ -24,7 +25,7 @@ namespace MikaUI
         }
 
 
-        internal Canvas Request(int sortingOrder)
+        internal CanvasRequest Request(int sortingOrder)
         {
             if (pool.TryGetValue(sortingOrder, out var canvas) == false)
             {
@@ -32,12 +33,15 @@ namespace MikaUI
                 pool[sortingOrder] = canvas;
             }
 
+            pendingRequests.TryGetValue(sortingOrder, out var count);
+            pendingRequests[sortingOrder] = count + 1;
+
             canvas.sortingOrder = sortingOrder;
 
             canvas.enabled = true;
             canvas.gameObject.SetActive(true);
 
-            return canvas;
+            return new CanvasRequest(this, sortingOrder, canvas);
 
 
             Canvas CreateCanvas(int sortingOrder)
@@ -51,20 +55,59 @@ namespace MikaUI
 
                 Canvas Reuse()
                 {
-                    foreach (var (sortingOrder, lifeTokenSet) in canvasUsingRegistry)
+                    foreach (var (sortingOrder, canvas) in pool)
                     {
-                        if (lifeTokenSet.Count == 0)
+                        if (IsUnused(sortingOrder))
                         {
-                            if (pool.TryGetValue(sortingOrder, out var canvas))
-                            {
-                                pool.Remove(sortingOrder);
-                                return canvas;
-                            }
+                            pool.Remove(sortingOrder);
+                            return canvas;
                         }
                     }
                     return null;
                 }
             }
+        }
+
+        internal sealed class CanvasRequest : IDisposable
+        {
+            readonly CanvasProvider provider;
+            readonly int sortingOrder;
+            bool isDisposed;
+
+            internal CanvasRequest(CanvasProvider provider, int sortingOrder, Canvas canvas)
+            {
+                this.provider = provider;
+                this.sortingOrder = sortingOrder;
+                Canvas = canvas;
+            }
+
+            internal Canvas Canvas { get; }
+
+            public void Dispose()
+            {
+                if (isDisposed)
+                    return;
+
+                isDisposed = true;
+                provider.ReleaseRequest(sortingOrder);
+            }
+        }
+
+        void ReleaseRequest(int sortingOrder)
+        {
+            var count = pendingRequests[sortingOrder];
+            if (count == 1)
+                pendingRequests.Remove(sortingOrder);
+            else
+                pendingRequests[sortingOrder] = count - 1;
+
+            RecoverIfUnused(sortingOrder);
+        }
+
+        bool IsUnused(int sortingOrder)
+        {
+            return pendingRequests.ContainsKey(sortingOrder) == false
+                && (canvasUsingRegistry.TryGetValue(sortingOrder, out var uis) == false || uis.Count == 0);
         }
 
         public void Register(Guid id, int sortingOrder)
@@ -85,12 +128,11 @@ namespace MikaUI
         }
 
         /// <summary>
-        /// Releases a canvas requested for a UI creation that did not complete.
-        /// A concurrent successful creation may register later; Register restores its active state.
+        /// Recovers a canvas once no creation request or active UI uses it.
         /// </summary>
         internal void RecoverIfUnused(int sortingOrder)
         {
-            if (canvasUsingRegistry.TryGetValue(sortingOrder, out var uis) && uis.Count > 0)
+            if (IsUnused(sortingOrder) == false)
             {
                 return;
             }
@@ -102,15 +144,15 @@ namespace MikaUI
         }
 
         /// <summary>
-        /// Recovers every pooled canvas without active UI registrations. This is
+        /// Recovers every pooled canvas without active UI registrations or requests. This is
         /// called by the unexpected-destruction runner after Unity has completed
         /// its OnDestroy phase, when changing Canvas hierarchy state is safe.
         /// </summary>
         internal void RecoverUnusedCanvases()
         {
-            foreach (var (sortingOrder, uis) in canvasUsingRegistry)
+            foreach (var (sortingOrder, canvas) in pool)
             {
-                if (uis.Count == 0 && pool.TryGetValue(sortingOrder, out var canvas))
+                if (IsUnused(sortingOrder))
                 {
                     RecoverCanvas(canvas);
                 }
@@ -139,10 +181,9 @@ namespace MikaUI
                 if (uis.Contains(id))
                 {
                     uis.Remove(id);
-                    if (recoverCanvas && uis.Count == 0)
+                    if (recoverCanvas)
                     {
-                        var canvas = pool[sortingOrder];
-                        RecoverCanvas(canvas);
+                        RecoverIfUnused(sortingOrder);
                     }
                     return;
                 }
