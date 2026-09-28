@@ -72,6 +72,7 @@ sysinfo.txt
 !/MikaUI.Core/*.csproj
 !/MikaUI.Core.Test/*.csproj
 !/MikaUI.sln
+/MikaUI.Unity/MikaUI.Unity.slnx
 
 
 **/.DS_Store
