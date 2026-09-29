@@ -19,16 +19,17 @@ namespace MikaUI
         List<UIElement<Transform>> uiElementList;
         bool isDisposed;
 
+        [Obsolete("Use DefaultUIElementProvider(sources, pool: null) instead. The single-argument constructor is no longer supported; pass pool: null to use UnityDestroyOnReleasePool, or provide a custom pool.", true)]
         public DefaultUIElementProvider(IEnumerable<IUIElementSource> sources)
-            : this(sources, new UnityDestroyOnReleasePool<IUIElementSource>()) { }
+            : this(sources, pool: null) { }
 
         public DefaultUIElementProvider(
             IEnumerable<IUIElementSource> sources,
-            IUnityUIElementPool<IUIElementSource> pool,
+            IUnityUIElementPool<IUIElementSource> pool = null,
             IUIInstanceUseLifecycle<IVisualUI> instanceUseLifecycle = null)
         {
             this.sources = sources ?? throw new ArgumentNullException(nameof(sources));
-            this.pool = pool ?? throw new ArgumentNullException(nameof(pool));
+            this.pool = pool ?? new UnityDestroyOnReleasePool<IUIElementSource>();
             this.instanceUseLifecycle = instanceUseLifecycle ?? new DefaultUIInstanceUseLifecycle<IVisualUI>();
         }
 

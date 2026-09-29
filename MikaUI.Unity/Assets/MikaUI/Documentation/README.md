@@ -125,16 +125,15 @@ var uiElementProvider = new DefaultUIElementProvider(uiElementSource.GetSources(
 
 var uiManager = new UnityUIManager(
     uiElementProvider,
-    canvasRoot,
-    canvasTemplate,
+    new CanvasProvider(canvasRoot, canvasTemplate),
     plugins: null
 );
 ```
 
-Without pooling, construct the provider with only the sources:
+Without pooling, pass `pool: null` to use the default destroy-on-release pool:
 
 ```csharp
-var uiElementProvider = new DefaultUIElementProvider(uiElementSource.GetSources());
+var uiElementProvider = new DefaultUIElementProvider(uiElementSource.GetSources(), pool: null);
 ```
 
 The capacity callback is evaluated once per source. `0` keeps no idle instances;

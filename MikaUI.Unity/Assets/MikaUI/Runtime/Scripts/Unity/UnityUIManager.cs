@@ -15,6 +15,7 @@ namespace MikaUI
 
 
 
+        [Obsolete("Use UnityUIManager(uiElementProvider, new CanvasProvider(canvasRoot, canvasTemplate), plugins, logger) instead. The canvasRoot/canvasTemplate constructor is no longer supported; construct and pass a CanvasProvider explicitly.", true)]
         public UnityUIManager(
             IUIElementProvider<MonoBehaviour, Transform> uiElementProvider,
             RectTransform canvasRoot,
@@ -31,7 +32,7 @@ namespace MikaUI
         public UnityUIManager(
             IUIElementProvider<MonoBehaviour, Transform> uiElementProvider,
             CanvasProvider canvasProvider,
-            IEnumerable<IPlugin<MonoBehaviour, Transform, SlotRectConfigs>> plugins,
+            IEnumerable<IPlugin<MonoBehaviour, Transform, SlotRectConfigs>> plugins = null,
             Logger logger = null
             ) : base(
                 uiElementProvider,
@@ -67,6 +68,7 @@ namespace MikaUI
         }
 
 
+        [Obsolete("Use UnityUIManager(new DefaultUIElementProvider(uIElementSources, pool: null), new CanvasProvider(canvasRoot, canvasTemplate), plugins, logger) instead. The sources/canvasRoot/canvasTemplate constructor is no longer supported; create the UI element provider and canvas provider explicitly.", true)]
         public UnityUIManager(
             IEnumerable<DefaultUIElementProvider.IUIElementSource> uIElementSources,
             RectTransform canvasRoot,
@@ -74,9 +76,8 @@ namespace MikaUI
             IEnumerable<IPlugin<MonoBehaviour, Transform, SlotRectConfigs>> plugins = null,
             Logger logger = null
             ) : this(
-                new DefaultUIElementProvider(uIElementSources),
-                canvasRoot,
-                canvasTemplate,
+                new DefaultUIElementProvider(uIElementSources, pool: null),
+                new CanvasProvider(canvasRoot, canvasTemplate),
                 plugins,
                 logger)
         { }

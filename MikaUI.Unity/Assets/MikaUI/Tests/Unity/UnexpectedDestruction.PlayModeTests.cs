@@ -270,7 +270,7 @@ namespace Tests.Unity
                     new[] { source },
                     new UnityBoundedEffectablePool<DefaultUIElementProvider.IUIElementSource>(
                         _ => poolCapacity.Value, poolRootObject.transform))
-                : new DefaultUIElementProvider(new[] { source });
+                : new DefaultUIElementProvider(new[] { source }, pool: null);
             manager = new UnityUIManager(
                 provider,
                 canvasProvider,

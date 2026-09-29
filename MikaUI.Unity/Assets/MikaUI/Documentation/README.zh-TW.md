@@ -126,16 +126,15 @@ var uiElementProvider = new DefaultUIElementProvider(uiElementSource.GetSources(
 
 var uiManager = new UnityUIManager(
     uiElementProvider,
-    canvasRoot,
-    canvasTemplate,
+    new CanvasProvider(canvasRoot, canvasTemplate),
     plugins: null
 );
 ```
 
-不需要 pooling 時，只傳入 sources：
+不需要 pooling 時，傳入 `pool: null`，使用預設的用後銷毀物件池：
 
 ```csharp
-var uiElementProvider = new DefaultUIElementProvider(uiElementSource.GetSources());
+var uiElementProvider = new DefaultUIElementProvider(uiElementSource.GetSources(), pool: null);
 ```
 
 容量函式對每個 source 計算一次。`0` 表示不保留閒置實例，負數是無效設定。
