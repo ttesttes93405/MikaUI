@@ -224,6 +224,8 @@ namespace Tests.Core
 
     internal class DummyUI : IVisualUI
     {
+        public IDisposable Disposable { get; private set; }
+        public object Anything { get; private set; }
         public UIManager<DummyUI, DummyContainer, object> Manager;
     }
 

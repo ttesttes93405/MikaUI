@@ -39,7 +39,10 @@ namespace MikaUI
 
             foreach (var field in fields)
             {
-                if (field.FieldType.IsAssignableFrom(uiManager.GetType()) == false)
+                // Broad fields such as IDisposable and object may accept a manager,
+                // but they are not declarations asking for manager injection.
+                if (typeof(UIManager<TUI, TContainer, TSlotConfig>).IsAssignableFrom(field.FieldType) == false
+                    || field.FieldType.IsAssignableFrom(uiManager.GetType()) == false)
                 {
                     continue;
                 }

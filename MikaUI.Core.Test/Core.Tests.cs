@@ -356,7 +356,7 @@ namespace Tests.Core
         }
 
         [Test]
-        public void Create_InjectsDerivedManagerIntoBaseManagerField()
+        public void Create_InjectsManagerOnlyIntoManagerTypedField()
         {
             var provider = new FakeUIElementProvider();
             var plugin = new InjectUIManagerPlugin<DummyUI, DummyContainer, object>();
@@ -371,6 +371,8 @@ namespace Tests.Core
                 var token = manager.Create<DummyUI>(DummySlot.Root()).WaitResult();
 
                 Assert.That(token.UI.Manager, Is.SameAs(manager));
+                Assert.That(token.UI.Disposable, Is.Null);
+                Assert.That(token.UI.Anything, Is.Null);
             }
             finally
             {
