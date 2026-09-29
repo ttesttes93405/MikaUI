@@ -254,12 +254,13 @@ Main responsibilities:
 
 - Looks up templates by UI type and name.
 - Instantiates UI, or rents an idle instance from an optional pool.
-- Runs `IUIEffectable` cleanup on every recovery.
-- Destroys UI when no pool is configured or the pool rejects it.
+- Connects Core's instance use lifecycle with a Unity pool on creation and recovery.
 
-`CreateBoundedPool(static source => capacity)` creates a Core pool that retains only
-`IUIEffectable` UI, with a fixed idle capacity per source. The provider disposes it
-when the manager is disposed.
+`UnityBoundedEffectablePool` is a Unity pool backed
+by Core's bounded FIFO storage. The pool retains only `IUIEffectable` UI, moves idle
+instances under `poolRoot`, and destroys instances it cannot retain. Core's element
+instance use lifecycle runs effect cleanup and preserves an instance's ElementID across reuse.
+The provider disposes its pool when the manager is disposed.
 
 ### `CanvasProvider`
 

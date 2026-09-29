@@ -120,8 +120,8 @@ In the Unity implementation, the manager is usually composed of the following pa
 Example:
 
 ```csharp
-var pool = DefaultUIElementProvider.CreateBoundedPool(static source => 8);
-var uiElementProvider = new DefaultUIElementProvider(uiElementSource.GetSources(), pool, poolRoot);
+var pool = new UnityBoundedEffectablePool<DefaultUIElementProvider.IUIElementSource>(static source => 8, poolRoot);
+var uiElementProvider = new DefaultUIElementProvider(uiElementSource.GetSources(), pool);
 
 var uiManager = new UnityUIManager(
     uiElementProvider,
@@ -139,6 +139,8 @@ var uiElementProvider = new DefaultUIElementProvider(uiElementSource.GetSources(
 
 The capacity callback is evaluated once per source. `0` keeps no idle instances;
 negative capacities are invalid. Manager disposal disposes the provider and pool.
+The pool owns `poolRoot` and instance destruction; Core's instance use lifecycle owns
+effect cleanup and ElementID. UIManager owns TokenID and tree recovery.
 
 ### 3. Create the UI and keep the token
 

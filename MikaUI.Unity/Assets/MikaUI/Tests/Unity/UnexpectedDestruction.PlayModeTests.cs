@@ -268,8 +268,8 @@ namespace Tests.Unity
             var provider = poolCapacity.HasValue
                 ? new DefaultUIElementProvider(
                     new[] { source },
-                    DefaultUIElementProvider.CreateBoundedPool(_ => poolCapacity.Value),
-                    poolRootObject.transform)
+                    new UnityBoundedEffectablePool<DefaultUIElementProvider.IUIElementSource>(
+                        _ => poolCapacity.Value, poolRootObject.transform))
                 : new DefaultUIElementProvider(new[] { source });
             manager = new UnityUIManager(
                 provider,

@@ -254,11 +254,12 @@ core layer 使用的 custom awaitable。
 
 - 依 UI type 與 name lookup template
 - 建立 UI，或從可選的 pool 取出閒置實例
-- 每次 recovery 都執行 `IUIEffectable` cleanup
-- 未設定 pool 或 pool 拒收時銷毀 UI
+- 在建立與回收時串接 Core 的 instance use lifecycle 與 Unity pool
 
-`CreateBoundedPool(static source => capacity)` 會建立 Core 的 pool 策略，
-只保留 `IUIEffectable` UI，並為每個 source 設定固定的閒置容量。
+`UnityBoundedEffectablePool` 是使用 Core 有界 FIFO
+儲存策略的 Unity pool。它只保留 `IUIEffectable` UI，將閒置實例移至 `poolRoot`，
+並銷毀無法保留的實例。Core 的 instance use lifecycle 負責效果清理，並讓同一實例
+重用時維持相同的 ElementID；TokenID 與樹狀回收仍由 UIManager 管理。
 manager dispose 時，provider 也會 dispose pool。
 
 ### `CanvasProvider`

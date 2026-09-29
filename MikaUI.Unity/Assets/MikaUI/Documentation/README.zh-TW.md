@@ -121,8 +121,8 @@ UI instance 應該透過 `UIManager` 建立，而不是讓不同 script 任意�
 範例：
 
 ```csharp
-var pool = DefaultUIElementProvider.CreateBoundedPool(static source => 8);
-var uiElementProvider = new DefaultUIElementProvider(uiElementSource.GetSources(), pool, poolRoot);
+var pool = new UnityBoundedEffectablePool<DefaultUIElementProvider.IUIElementSource>(static source => 8, poolRoot);
+var uiElementProvider = new DefaultUIElementProvider(uiElementSource.GetSources(), pool);
 
 var uiManager = new UnityUIManager(
     uiElementProvider,
@@ -139,6 +139,8 @@ var uiElementProvider = new DefaultUIElementProvider(uiElementSource.GetSources(
 ```
 
 容量函式對每個 source 計算一次。`0` 表示不保留閒置實例，負數是無效設定。
+pool 負責 `poolRoot` 與實例銷毀，Core 的 instance use lifecycle 負責效果清理與 ElementID；
+TokenID 與樹狀回收仍由 UIManager 管理。
 manager dispose 時會依序 dispose provider 與 pool。
 
 ### 3. 建立 UI，並保留 token

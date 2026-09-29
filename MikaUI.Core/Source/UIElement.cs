@@ -12,9 +12,8 @@ namespace MikaUI
         public Action<IVisualUI> Recovery { get; init; }
 
         /// <summary>
-        /// Removes bookkeeping for an element Unity has already destroyed. Unlike
-        /// <see cref="Recovery"/>, this callback must not access its GameObject or
-        /// return the element to a pool.
+        /// Called after unexpected destruction. Implementations must check whether
+        /// this element is still alive: surviving children can follow normal recovery.
         /// </summary>
         public Action<IVisualUI> UnexpectedRecovery { get; init; }
 

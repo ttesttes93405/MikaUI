@@ -14,37 +14,22 @@ namespace MikaUI
         }
 
         readonly IEnumerable<IUIElementSource> sources;
-        readonly IObjectPool<IUIElementSource, IVisualUI> pool;
-        readonly Transform poolRoot;
+        readonly IUnityUIElementPool<IUIElementSource> pool;
+        readonly IUIInstanceUseLifecycle<IVisualUI> instanceUseLifecycle;
         List<UIElement<Transform>> uiElementList;
         bool isDisposed;
 
         public DefaultUIElementProvider(IEnumerable<IUIElementSource> sources)
-            : this(sources, null, null) { }
+            : this(sources, new UnityDestroyOnReleasePool<IUIElementSource>()) { }
 
         public DefaultUIElementProvider(
             IEnumerable<IUIElementSource> sources,
-            IObjectPool<IUIElementSource, IVisualUI> pool,
-            Transform poolRoot)
+            IUnityUIElementPool<IUIElementSource> pool,
+            IUIInstanceUseLifecycle<IVisualUI> instanceUseLifecycle = null)
         {
             this.sources = sources ?? throw new ArgumentNullException(nameof(sources));
-            this.pool = pool;
-            if (pool != null && poolRoot == null)
-                throw new ArgumentNullException(nameof(poolRoot));
-            this.poolRoot = poolRoot;
-        }
-
-        /// <summary>Creates the Core pool with Unity's GameObject disposal behavior.</summary>
-        public static BoundedEffectablePool<IUIElementSource, IVisualUI> CreateBoundedPool(
-            Func<IUIElementSource, int> capacityForSource)
-        {
-            return new BoundedEffectablePool<IUIElementSource, IVisualUI>(
-                capacityForSource,
-                ui =>
-                {
-                    if (ui is MonoBehaviour component && component != null)
-                        UnityEngine.Object.Destroy(component.gameObject);
-                });
+            this.pool = pool ?? throw new ArgumentNullException(nameof(pool));
+            this.instanceUseLifecycle = instanceUseLifecycle ?? new DefaultUIInstanceUseLifecycle<IVisualUI>();
         }
 
         public MikaTask<UIElement<Transform>> GetUIElement<T>(string name) where T : MonoBehaviour, IVisualUI
@@ -63,10 +48,6 @@ namespace MikaUI
                 return null;
             }
 
-            var cleaners = new Dictionary<IVisualUI, Action>();
-            var ids = new Dictionary<IVisualUI, Guid>();
-            var readyForReuse = new HashSet<IVisualUI>();
-
             return new UIElement<Transform>
             {
                 UIName = source.UIName,
@@ -74,118 +55,34 @@ namespace MikaUI
                 Create = container =>
                 {
                     ThrowIfDisposed();
-                    IVisualUI ui = null;
-                    if (pool != null)
-                    {
-                        while (pool.TryRent(source, out var candidate))
-                        {
-                            if ((candidate as MonoBehaviour) == null)
-                            {
-                                cleaners.Remove(candidate);
-                                ids.Remove(candidate);
-                                readyForReuse.Remove(candidate);
-                                continue;
-                            }
-
-                            ui = candidate;
-                            (ui as MonoBehaviour).transform.SetParent(container, false);
-                            break;
-                        }
-                    }
-
+                    pool.TryRent(source, container, out var ui);
                     ui ??= UnityEngine.Object.Instantiate(source.UITemplate, container) as IVisualUI;
-                    if (ids.TryGetValue(ui, out var id) == false)
-                    {
-                        id = Guid.NewGuid();
-                        ids.Add(ui, id);
-                    }
-
-                    return MikaTask<(IVisualUI, Action, Guid)>.FromResult((ui, OnCreated, id));
-
-                    void OnCreated()
-                    {
-                        if (ui is IUIEffectable effectable)
-                            cleaners[ui] = effectable.UseEffect();
-                        readyForReuse.Add(ui);
-                    }
-                },
-                Recovery = ui =>
-                {
-                    if ((ui as MonoBehaviour) == null)
-                    {
-                        cleaners.Remove(ui);
-                        ids.Remove(ui);
-                        readyForReuse.Remove(ui);
-                        return;
-                    }
-
-                    cleaners.TryGetValue(ui, out var cleaner);
-                    var cleanupSucceeded = false;
                     try
                     {
-                        cleaner?.Invoke();
-                        cleanupSucceeded = true;
+                        var elementId = instanceUseLifecycle.BeginUse(ui);
+                        return MikaTask<(IVisualUI, Action, Guid)>.FromResult((ui, () => instanceUseLifecycle.OnCreated(ui), elementId));
                     }
-                    finally
+                    catch
                     {
-                        cleaners.Remove(ui);
-                        var activated = readyForReuse.Remove(ui);
-                        ReturnOrDestroy(source, ui, ids, activated && cleanupSucceeded);
+                        pool.Release(source, ui, false);
+                        throw;
                     }
                 },
-                UnexpectedRecovery = ui =>
-                {
-                    // A destroyed Unity object must never be returned to the pool.
-                    if ((ui as MonoBehaviour) == null)
-                    {
-                        cleaners.Remove(ui);
-                        ids.Remove(ui);
-                        readyForReuse.Remove(ui);
-                        return;
-                    }
-
-                    cleaners.TryGetValue(ui, out var cleaner);
-                    var cleanupSucceeded = false;
-                    try
-                    {
-                        cleaner?.Invoke();
-                        cleanupSucceeded = true;
-                    }
-                    finally
-                    {
-                        cleaners.Remove(ui);
-                        var activated = readyForReuse.Remove(ui);
-                        ReturnOrDestroy(source, ui, ids, activated && cleanupSucceeded);
-                    }
-                },
+                Recovery = ui => Recover(source, ui),
+                UnexpectedRecovery = ui => Recover(source, ui),
             };
         }
 
-        void ReturnOrDestroy(IUIElementSource source, IVisualUI ui, Dictionary<IVisualUI, Guid> ids, bool mayReuse)
+        void Recover(IUIElementSource source, IVisualUI ui)
         {
-            var component = ui as MonoBehaviour;
-            if (component == null)
-            {
-                ids.Remove(ui);
-                return;
-            }
-
-            var retained = false;
+            var canReuse = false;
             try
             {
-                if (mayReuse && !isDisposed && pool != null && poolRoot != null)
-                {
-                    component.transform.SetParent(poolRoot, false);
-                    retained = pool.TryReturn(source, ui);
-                }
+                canReuse = instanceUseLifecycle.Recover(ui, (ui as MonoBehaviour) != null);
             }
             finally
             {
-                if (!retained)
-                {
-                    ids.Remove(ui);
-                    UnityEngine.Object.Destroy(component.gameObject);
-                }
+                pool.Release(source, ui, canReuse && !isDisposed);
             }
         }
 
