@@ -69,13 +69,12 @@ namespace MikaUI
 
         public UnityUIManager(
             IEnumerable<DefaultUIElementProvider.IUIElementSource> uIElementSources,
-            Transform poolRoot,
             RectTransform canvasRoot,
             Canvas canvasTemplate,
             IEnumerable<IPlugin<MonoBehaviour, Transform, SlotRectConfigs>> plugins = null,
             Logger logger = null
             ) : this(
-                new DefaultUIElementProvider(uIElementSources, poolRoot),
+                new DefaultUIElementProvider(uIElementSources),
                 canvasRoot,
                 canvasTemplate,
                 plugins,

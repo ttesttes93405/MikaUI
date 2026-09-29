@@ -50,13 +50,20 @@ if (( timeout_seconds < 1 )); then
 fi
 
 if ! processes="$(ps -axo pid=,comm= 2>/dev/null)"; then
-  echo "ERROR: Cannot check whether Unity Editor is already running." >&2
+  echo "ERROR: Cannot check whether Unity Editor or Licensing Client is already running." >&2
   exit 2
 fi
 existing_editor_pid="$(printf '%s\n' "$processes" | awk '/\/Unity\.app\/Contents\/MacOS\/Unity$/ { print $1; exit }')"
 if [[ -n "$existing_editor_pid" ]]; then
   echo "ERROR: Unity Editor is already running (PID $existing_editor_pid). Close it before running tests." >&2
   exit 8
+fi
+
+licensing_client_pids="$(printf '%s\n' "$processes" | awk '/\/UnityLicensingClient\.app\/Contents\/MacOS\/Unity\.Licensing\.Client$/ { if (count++) printf ", "; printf "%s", $1 } END { if (count) print "" }')"
+if [[ -n "$licensing_client_pids" ]]; then
+  echo "ERROR: Residual Unity Licensing Client detected (PID $licensing_client_pids). $mode tests cannot start." >&2
+  echo "Terminate the Licensing Client process, then rerun this script." >&2
+  exit 9
 fi
 
 run_dir="$repo_root/artifacts/unity-tests/${mode}-$(date +%Y%m%d-%H%M%S)-$$"

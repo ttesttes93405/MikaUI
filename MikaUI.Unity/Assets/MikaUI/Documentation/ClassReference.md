@@ -136,6 +136,7 @@ Main responsibilities:
 - Produces a visual UI element by type and name.
 - Produces a virtual UI element by type.
 - Defines how created elements are recovered.
+- Is disposed by the manager after active elements are recovered.
 
 This type separates lifecycle orchestration from concrete instantiation and pooling.
 
@@ -252,11 +253,13 @@ Default Unity implementation of `IUIElementProvider<MonoBehaviour, Transform>`.
 Main responsibilities:
 
 - Looks up templates by UI type and name.
-- Instantiates or reuses pooled UI.
-- Returns reusable UI to the pool root.
-- Destroys non-reusable UI during recovery.
+- Instantiates UI, or rents an idle instance from an optional pool.
+- Runs `IUIEffectable` cleanup on every recovery.
+- Destroys UI when no pool is configured or the pool rejects it.
 
-Use this unless the project uses a different prefab-loading or pooling strategy.
+`CreateBoundedPool(static source => capacity)` creates a Core pool that retains only
+`IUIEffectable` UI, with a fixed idle capacity per source. The provider disposes it
+when the manager is disposed.
 
 ### `CanvasProvider`
 

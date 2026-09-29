@@ -45,15 +45,40 @@ namespace MikaUI
             IEnumerable<IPlugin<TUI, TContainer, TSlotConfig>> plugins,
             Logger logger)
         {
-            this.uiElementProvider = uiElementProvider;
+            this.uiElementProvider = uiElementProvider ?? throw new ArgumentNullException(nameof(uiElementProvider));
             this.logger = logger;
             RootContainer = rootContainer ?? throw new ArgumentNullException(nameof(rootContainer));
 
             nodeManager = new NodeManager(logger);
 
-            combinedPlugin = new PluginCombiner<TUI, TContainer, TSlotConfig>(plugins);
-
-            combinedPlugin.Install(this);
+            try
+            {
+                combinedPlugin = new PluginCombiner<TUI, TContainer, TSlotConfig>(plugins);
+                combinedPlugin.Install(this);
+            }
+            catch
+            {
+                try
+                {
+                    uiElementProvider.Dispose();
+                }
+                catch
+                {
+                    // Preserve the installation failure while releasing owned resources.
+                }
+                finally
+                {
+                    try
+                    {
+                        nodeManager.Dispose();
+                    }
+                    catch
+                    {
+                        // Preserve the installation failure.
+                    }
+                }
+                throw;
+            }
         }
 
 
@@ -627,24 +652,41 @@ namespace MikaUI
             // cannot attach a node after the manager has been shut down.
             isDisposed = true;
 
-            foreach (var node in nodeManager.GetRootNodes())
+            try
             {
-                UIFullTreeRecovery(node);
+                foreach (var node in nodeManager.GetRootNodes())
+                {
+                    UIFullTreeRecovery(node);
+                }
             }
-
-            combinedPlugin.Uninstall(this, exception =>
+            finally
             {
                 try
                 {
-                    logger?.LogError?.Invoke(exception);
+                    combinedPlugin.Uninstall(this, exception =>
+                    {
+                        try
+                        {
+                            logger?.LogError?.Invoke(exception);
+                        }
+                        catch
+                        {
+                            // A logger failure must not leave later plugins installed.
+                        }
+                    });
                 }
-                catch
+                finally
                 {
-                    // A logger failure must not leave later plugins installed.
+                    try
+                    {
+                        uiElementProvider.Dispose();
+                    }
+                    finally
+                    {
+                        nodeManager.Dispose();
+                    }
                 }
-            });
-
-            nodeManager.Dispose();
+            }
         }
     }
 

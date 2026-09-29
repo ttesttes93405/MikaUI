@@ -60,6 +60,8 @@ namespace Tests.Core
 
     internal sealed class FakeUIElementProvider : IUIElementProvider<DummyUI, DummyContainer>
     {
+        public int DisposeCount { get; private set; }
+        public void Dispose() => DisposeCount++;
         public List<DummyUI> CreatedInstances { get; } = new();
         public int RecoveryCount { get; private set; }
         public int UnexpectedRecoveryCount { get; private set; }
@@ -135,6 +137,8 @@ namespace Tests.Core
 
     internal sealed class DeferredUIElementProvider : IUIElementProvider<DummyUI, DummyContainer>
     {
+        public int DisposeCount { get; private set; }
+        public void Dispose() => DisposeCount++;
         public TaskCompletionSource<UIElement<DummyContainer>> LookupSource { get; } = new();
         public TaskCompletionSource<(IVisualUI ui, Action onCreated, Guid elementID)> CreateSource { get; } = new();
         public int CreateInvocationCount { get; private set; }
@@ -265,6 +269,7 @@ namespace Tests.Core
 
     internal sealed class NullUIElementProvider : IUIElementProvider<DummyUI, DummyContainer>
     {
+        public void Dispose() { }
         public MikaTask<UIElement<DummyContainer>> GetUIElement<T>(string name) where T : DummyUI, IVisualUI
         {
             return MikaTask<UIElement<DummyContainer>>.FromResult(null);

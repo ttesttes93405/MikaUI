@@ -136,6 +136,62 @@ namespace Tests.Unity
         }
 
         [UnityTest]
+        public IEnumerator WithoutPool_RecoversByDestroyingAndStillRunsCleanup()
+        {
+            CreateManager(poolCapacity: null);
+
+            var firstToken = CreateRoot();
+            var firstUI = firstToken.UI;
+            var firstElementId = firstToken.ElementID;
+            firstToken.Dispose();
+            yield return null;
+
+            Assert.That(firstUI == null, Is.True);
+            Assert.That(ReusableTestUI.CleanupCount, Is.EqualTo(1));
+
+            var replacementToken = CreateRoot();
+            Assert.That(replacementToken.ElementID, Is.Not.EqualTo(firstElementId));
+            replacementToken.Dispose();
+        }
+
+        [UnityTest]
+        public IEnumerator PoolCapacityOne_RetainsOnlyTheFirstReturnedInstance()
+        {
+            CreateManager(poolCapacity: 1);
+
+            var firstToken = CreateRoot();
+            var firstUI = firstToken.UI;
+            var firstElementId = firstToken.ElementID;
+            var secondToken = CreateRoot();
+            var secondUI = secondToken.UI;
+            firstToken.Dispose();
+            secondToken.Dispose();
+            yield return null;
+
+            Assert.That(firstUI == null, Is.False);
+            Assert.That(secondUI == null, Is.True);
+            var replacementToken = CreateRoot();
+            Assert.That(replacementToken.UI, Is.SameAs(firstUI));
+            Assert.That(replacementToken.ElementID, Is.EqualTo(firstElementId));
+            replacementToken.Dispose();
+        }
+
+        [UnityTest]
+        public IEnumerator ManagerDispose_DestroysIdlePooledInstances()
+        {
+            CreateManager(poolCapacity: 1);
+
+            var token = CreateRoot();
+            var ui = token.UI;
+            token.Dispose();
+            Assert.That(ui == null, Is.False);
+
+            manager.Dispose();
+            yield return null;
+            Assert.That(ui == null, Is.True);
+        }
+
+        [UnityTest]
         public IEnumerator DestroyingManagedParent_RecoversExternalChildNormally()
         {
             CreateManager();
@@ -192,7 +248,7 @@ namespace Tests.Unity
             yield return null;
         }
 
-        void CreateManager(IPlugin<MonoBehaviour, Transform, SlotRectConfigs> additionalPlugin = null)
+        void CreateManager(IPlugin<MonoBehaviour, Transform, SlotRectConfigs> additionalPlugin = null, int? poolCapacity = 8)
         {
             ReusableTestUI.ResetCounters();
             canvasRootObject = new GameObject("Canvas Root", typeof(RectTransform));
@@ -209,8 +265,14 @@ namespace Tests.Unity
             var plugins = additionalPlugin == null
                 ? new IPlugin<MonoBehaviour, Transform, SlotRectConfigs>[] { destroyDetectPlugin }
                 : new IPlugin<MonoBehaviour, Transform, SlotRectConfigs>[] { additionalPlugin, destroyDetectPlugin };
+            var provider = poolCapacity.HasValue
+                ? new DefaultUIElementProvider(
+                    new[] { source },
+                    DefaultUIElementProvider.CreateBoundedPool(_ => poolCapacity.Value),
+                    poolRootObject.transform)
+                : new DefaultUIElementProvider(new[] { source });
             manager = new UnityUIManager(
-                new DefaultUIElementProvider(new[] { source }, poolRootObject.transform),
+                provider,
                 canvasProvider,
                 plugins);
         }

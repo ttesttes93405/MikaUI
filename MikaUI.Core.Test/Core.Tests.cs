@@ -226,6 +226,7 @@ namespace Tests.Core
                 Assert.That(exception.InnerExceptions[0], Is.TypeOf<ObjectDisposedException>());
                 Assert.That(provider.CreateInvocationCount, Is.EqualTo(0));
                 Assert.That(provider.RecoveryCount, Is.EqualTo(0));
+                Assert.That(provider.DisposeCount, Is.EqualTo(1));
             }
             finally
             {
@@ -251,6 +252,7 @@ namespace Tests.Core
                 var exception = Assert.Throws<AggregateException>(() => createTask.WaitResult());
                 Assert.That(exception.InnerExceptions[0], Is.TypeOf<ObjectDisposedException>());
                 Assert.That(provider.RecoveryCount, Is.EqualTo(1));
+                Assert.That(provider.DisposeCount, Is.EqualTo(1));
             }
             finally
             {
@@ -396,6 +398,7 @@ namespace Tests.Core
         [Test]
         public void Constructor_WhenSecondPluginInstallFails_UninstallsOnlyCompletedPlugins()
         {
+            var provider = new FakeUIElementProvider();
             var events = new List<string>();
             var first = new InstallLifecyclePlugin("first", 0, events);
             var second = new InstallLifecyclePlugin("second", 1, events)
@@ -405,13 +408,52 @@ namespace Tests.Core
             var third = new InstallLifecyclePlugin("third", 2, events);
 
             var exception = Assert.Throws<InvalidOperationException>(() => new TestableUIManager(
-                new FakeUIElementProvider(),
+                provider,
                 new FakeCanvasProvider(),
                 new IPlugin<DummyUI, DummyContainer, object>[] { third, second, first },
                 DummyLogger.Create()));
 
             Assert.That(exception, Is.SameAs(second.InstallException));
             CollectionAssert.AreEqual(new[] { "Install first", "Install second", "Uninstall first" }, events);
+            Assert.That(provider.DisposeCount, Is.EqualTo(1));
+        }
+
+        [Test]
+        public void Constructor_WhenPluginEnumerationFails_DisposesProvider()
+        {
+            var provider = new FakeUIElementProvider();
+            var failure = new InvalidOperationException("Plugin enumeration failed.");
+
+            var exception = Assert.Throws<InvalidOperationException>(() => new TestableUIManager(
+                provider,
+                new FakeCanvasProvider(),
+                ThrowingPlugins(),
+                DummyLogger.Create()));
+            Assert.That(exception, Is.SameAs(failure));
+            Assert.That(provider.DisposeCount, Is.EqualTo(1));
+
+            IEnumerable<IPlugin<DummyUI, DummyContainer, object>> ThrowingPlugins()
+            {
+                yield return new InstallLifecyclePlugin("first", 0, new List<string>());
+                throw failure;
+            }
+        }
+
+        [Test]
+        public void Dispose_RecoversActiveUiBeforeDisposingProvider()
+        {
+            var provider = new FakeUIElementProvider();
+            var manager = new TestableUIManager(provider, new FakeCanvasProvider(),
+                Array.Empty<IPlugin<DummyUI, DummyContainer, object>>(), DummyLogger.Create());
+            var token = manager.Create<DummyUI>(DummySlot.Root()).WaitResult();
+
+            manager.Dispose();
+
+            Assert.That(token.IsDisposed, Is.True);
+            Assert.That(provider.RecoveryCount, Is.EqualTo(1));
+            Assert.That(provider.DisposeCount, Is.EqualTo(1));
+            manager.Dispose();
+            Assert.That(provider.DisposeCount, Is.EqualTo(1));
         }
 
         [Test]

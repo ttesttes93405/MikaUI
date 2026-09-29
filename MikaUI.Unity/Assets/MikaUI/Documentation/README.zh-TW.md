@@ -113,7 +113,7 @@ UI instance 應該透過 `UIManager` 建立，而不是讓不同 script 任意�
 在 Unity 實作裡，`UIManager` 通常會由以下幾個部分組成：
 
 - UI source catalog
-- pool root
+- 可選的 pool root
 - canvas root
 - canvas template
 - 預設 plugin set
@@ -121,7 +121,8 @@ UI instance 應該透過 `UIManager` 建立，而不是讓不同 script 任意�
 範例：
 
 ```csharp
-var uiElementProvider = new DefaultUIElementProvider(uiElementSource.GetSources(), poolRoot);
+var pool = DefaultUIElementProvider.CreateBoundedPool(static source => 8);
+var uiElementProvider = new DefaultUIElementProvider(uiElementSource.GetSources(), pool, poolRoot);
 
 var uiManager = new UnityUIManager(
     uiElementProvider,
@@ -130,6 +131,15 @@ var uiManager = new UnityUIManager(
     plugins: null
 );
 ```
+
+不需要 pooling 時，只傳入 sources：
+
+```csharp
+var uiElementProvider = new DefaultUIElementProvider(uiElementSource.GetSources());
+```
+
+容量函式對每個 source 計算一次。`0` 表示不保留閒置實例，負數是無效設定。
+manager dispose 時會依序 dispose provider 與 pool。
 
 ### 3. 建立 UI，並保留 token
 
@@ -190,14 +200,14 @@ child UI 會被插入 parent UI 的指定位置，並且在 parent UI recovery �
 
 ### Recovery semantics
 
-對 reusable UI 來說，recovery 的意思是：
+對已設定 pool 的 `IUIEffectable` UI 來說，recovery 的意思是：
 
 - 離開 active tree
 - 執行 cleanup
 - 移回 pool root
 - 等待下次 reuse
 
-對 non-reusable UI 來說，recovery 才代表 destruction。
+沒有 pool 或 source pool 已滿時，recovery 會在 cleanup 後銷毀 UI。
 
 所以這套 package 的中心不是 destruction，而是 lifecycle completion。
 
@@ -230,7 +240,7 @@ Unity 層額外提供像這樣的 runtime 行為：
 - 自動 reuse canvas
 - RectTransform fitting
 - 從 `DefaultUIElementSource` 做 prefab lookup
-- 為 reusable `MonoBehaviour` UI 提供 pooling
+- 可選擇為 `IUIEffectable` UI 提供逐 source 容量限制的 pooling
 
 圍繞著 ownership 與 lifecycle ，再做一層 Unity 的 adapter。
 

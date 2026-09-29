@@ -136,6 +136,7 @@ UI element 的 abstract factory 與 recovery boundary。
 - 依 type 與 name 產生 visual UI element
 - 依 type 產生 virtual UI element
 - 定義 element 被建立後要如何 recovery
+- manager 回收活躍 UI 後會 dispose provider
 
 這個型別把 lifecycle orchestration 與具體 instantiation / pooling 策略分開。
 
@@ -252,11 +253,13 @@ core layer 使用的 custom awaitable。
 主要責任：
 
 - 依 UI type 與 name lookup template
-- instantiate 或 reuse pooled UI
-- 把 reusable UI 放回 pool root
-- 在 recovery 時 destroy non-reusable UI
+- 建立 UI，或從可選的 pool 取出閒置實例
+- 每次 recovery 都執行 `IUIEffectable` cleanup
+- 未設定 pool 或 pool 拒收時銷毀 UI
 
-除非專案有自己的一套 prefab loading 或 pooling 策略，不然通常直接用它就可以。
+`CreateBoundedPool(static source => capacity)` 會建立 Core 的 pool 策略，
+只保留 `IUIEffectable` UI，並為每個 source 設定固定的閒置容量。
+manager dispose 時，provider 也會 dispose pool。
 
 ### `CanvasProvider`
 

@@ -112,7 +112,7 @@ When a UI is created, the source configuration determines how it is resolved.
 In the Unity implementation, the manager is usually composed of the following parts:
 
 - A UI source catalog
-- A pool root
+- An optional pool root
 - A canvas root
 - A canvas template
 - The default plugin set
@@ -120,7 +120,8 @@ In the Unity implementation, the manager is usually composed of the following pa
 Example:
 
 ```csharp
-var uiElementProvider = new DefaultUIElementProvider(uiElementSource.GetSources(), poolRoot);
+var pool = DefaultUIElementProvider.CreateBoundedPool(static source => 8);
+var uiElementProvider = new DefaultUIElementProvider(uiElementSource.GetSources(), pool, poolRoot);
 
 var uiManager = new UnityUIManager(
     uiElementProvider,
@@ -129,6 +130,15 @@ var uiManager = new UnityUIManager(
     plugins: null
 );
 ```
+
+Without pooling, construct the provider with only the sources:
+
+```csharp
+var uiElementProvider = new DefaultUIElementProvider(uiElementSource.GetSources());
+```
+
+The capacity callback is evaluated once per source. `0` keeps no idle instances;
+negative capacities are invalid. Manager disposal disposes the provider and pool.
 
 ### 3. Create the UI and keep the token
 
@@ -189,14 +199,14 @@ Clear temporary text, selection state, temporary listeners, and other per-use st
 
 ### Recovery semantics
 
-For reusable UI, recovery means:
+For `IUIEffectable` UI with a pool configured, recovery means:
 
 - Leave the active tree
 - Run cleanup
 - Move back to the pool root
 - Wait for the next use
 
-For non-reusable UI, recovery means destruction.
+Without a pool, or when the source pool is full, recovery destroys the UI after cleanup.
 
 This package is not centered on destruction. It is centered on lifecycle completion.
 
@@ -231,7 +241,7 @@ The Unity layer adds practical runtime behavior such as:
 - Automatic canvas reuse
 - RectTransform fitting
 - Prefab lookup from `DefaultUIElementSource`
-- Pooling for reusable `MonoBehaviour` UIs
+- Optional pooling for `IUIEffectable` UIs with a per-source capacity
 
 The Unity layer acts as an adapter around that ownership and lifecycle core.
 
