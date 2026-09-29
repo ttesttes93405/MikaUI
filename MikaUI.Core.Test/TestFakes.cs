@@ -64,6 +64,10 @@ namespace Tests.Core
         public int RecoveryCount { get; private set; }
         public int UnexpectedRecoveryCount { get; private set; }
         public int VirtualRecoveryCount { get; private set; }
+        public IVisualUI VisualResultOverride { get; set; }
+        public IVirtualUI VirtualResultOverride { get; set; }
+        public IVisualUI RecoveredVisualUI { get; private set; }
+        public IVirtualUI RecoveredVirtualUI { get; private set; }
         public bool ThrowOnVirtualCreated { get; set; }
         public Action OnVisualCreated { get; set; }
         public Action OnVirtualCreated { get; set; }
@@ -93,9 +97,9 @@ namespace Tests.Core
                     CreatedInstances.Add(ui);
                     var elementId = Guid.NewGuid();
 
-                    return MikaTask<(IVisualUI ui, Action onCreated, Guid elementID)>.FromResult((ui, () => OnVisualCreated?.Invoke(), elementId));
+                    return MikaTask<(IVisualUI ui, Action onCreated, Guid elementID)>.FromResult((VisualResultOverride ?? ui, () => OnVisualCreated?.Invoke(), elementId));
                 },
-                Recovery = ui => { RecoveryCount++; },
+                Recovery = ui => { RecoveredVisualUI = ui; RecoveryCount++; },
                 UnexpectedRecovery = ui => { UnexpectedRecoveryCount++; },
             });
         }
@@ -113,7 +117,7 @@ namespace Tests.Core
                 Create = () =>
                 {
                     var ui = new T();
-                    return MikaTask<(IVirtualUI ui, Action onCreated, Guid elementID)>.FromResult((ui, OnCreated, Guid.NewGuid()));
+                    return MikaTask<(IVirtualUI ui, Action onCreated, Guid elementID)>.FromResult((VirtualResultOverride ?? ui, OnCreated, Guid.NewGuid()));
 
                     void OnCreated()
                     {
@@ -124,7 +128,7 @@ namespace Tests.Core
                         }
                     }
                 },
-                Recovery = ui => { VirtualRecoveryCount++; },
+                Recovery = ui => { RecoveredVirtualUI = ui; VirtualRecoveryCount++; },
             };
         }
     }
@@ -220,6 +224,14 @@ namespace Tests.Core
     }
 
     internal class DummyVirtualUI : IVirtualUI
+    {
+    }
+
+    internal class OtherVisualUI : IVisualUI
+    {
+    }
+
+    internal class OtherVirtualUI : IVirtualUI
     {
     }
 

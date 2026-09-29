@@ -99,6 +99,48 @@ namespace Tests.Core
         }
 
         [Test]
+        public void Create_WhenProviderReturnsWrongVisualType_RecoversReturnedInstance()
+        {
+            var returnedUI = new OtherVisualUI();
+            var provider = new FakeUIElementProvider { VisualResultOverride = returnedUI };
+            var manager = new TestableUIManager(provider, new FakeCanvasProvider(), Array.Empty<IPlugin<DummyUI, DummyContainer, object>>(), DummyLogger.Create());
+
+            try
+            {
+                var exception = Assert.Throws<AggregateException>(() => manager.Create<DummyUI>(DummySlot.Root()).WaitResult());
+
+                Assert.That(exception.InnerExceptions[0], Is.TypeOf<NullReferenceException>());
+                Assert.That(provider.RecoveryCount, Is.EqualTo(1));
+                Assert.That(provider.RecoveredVisualUI, Is.SameAs(returnedUI));
+            }
+            finally
+            {
+                manager.Dispose();
+            }
+        }
+
+        [Test]
+        public void CreateVirtual_WhenProviderReturnsWrongType_RecoversReturnedInstance()
+        {
+            var returnedUI = new OtherVirtualUI();
+            var provider = new FakeUIElementProvider { VirtualResultOverride = returnedUI };
+            var manager = new TestableUIManager(provider, new FakeCanvasProvider(), Array.Empty<IPlugin<DummyUI, DummyContainer, object>>(), DummyLogger.Create());
+
+            try
+            {
+                var exception = Assert.Throws<AggregateException>(() => manager.CreateVirtual<DummyVirtualUI>().WaitResult());
+
+                Assert.That(exception.InnerExceptions[0].Message, Does.Contain("Cannot create UI DummyVirtualUI"));
+                Assert.That(provider.VirtualRecoveryCount, Is.EqualTo(1));
+                Assert.That(provider.RecoveredVirtualUI, Is.SameAs(returnedUI));
+            }
+            finally
+            {
+                manager.Dispose();
+            }
+        }
+
+        [Test]
         public void CreateSlotWithoutSorting_DoesNotRegisterCanvas()
         {
             var provider = new FakeUIElementProvider();

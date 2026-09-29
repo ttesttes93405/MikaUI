@@ -96,6 +96,7 @@ namespace MikaUI
 
             if (uiIns is T ui == false)
             {
+                RecoverUnmanagedElement(() => uiElement.Recovery(uiIns));
                 throw new NullReferenceException($"Cannot create UI {typeof(T).Name}");
             }
 
@@ -368,6 +369,7 @@ namespace MikaUI
 
             if (virtualUI is T ui == false)
             {
+                RecoverUnmanagedElement(() => virtualUIElement.Recovery(virtualUI));
                 throw new Exception($"Cannot create UI {typeof(T).Name}");
             }
 
