@@ -15,7 +15,7 @@ This guide uses that shop to introduce the main concepts.
 Here is a minimal example, with the manager and prefab already set up:
 
 ```csharp
-using (var token = await uiManager.Create<UI_Shop>(sortingOrder: 0))
+using (var token = await uiManager.Create<UI_ShopProduct>(sortingOrder: 0))
 {
     await token.UI.ShowAsync(product);
 }

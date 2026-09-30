@@ -28,7 +28,7 @@ var slot = new VisualSlot(shop, shop.DetailContainer);
 擴充後的商店 prefab 多了查看詳情的按鈕與容器：
 
 ```text
-UI_Shop
+UI_ShopProduct
 └── Panel
     ├── ProductName
     ├── Price
@@ -37,13 +37,13 @@ UI_Shop
     └── DetailContainer ← 詳情顯示的位置
 ```
 
-`UI_Shop` 保留原本的顯示與關閉方法，新增以下成員（事件使用 `System.Action`）：
+`UI_ShopProduct` 保留原本的顯示與關閉方法，新增以下成員（事件使用 `System.Action`）：
 
 ```csharp
 [SerializeField] RectTransform detailContainer;
 
 public RectTransform DetailContainer => detailContainer;
-public event System.Action<UI_Shop> DetailRequested;
+public event System.Action<UI_ShopProduct> DetailRequested;
 
 public void RequestDetail()
 {
@@ -58,7 +58,7 @@ public void RequestDetail()
 在 `ShopDemo` 中加入 `OpenDetail`，沿用原本的 manager 與商品資料：
 
 ```csharp
-async void OpenDetail(UI_Shop shop)
+async void OpenDetail(UI_ShopProduct shop)
 {
     var slot = new VisualSlot(shop, shop.DetailContainer);
     using (var token = await uiManager.Create<UI_ProductDetail>(slot))
@@ -70,12 +70,12 @@ async void OpenDetail(UI_Shop shop)
 
 這段流程和開啟商店相同，主要差別是透過 slot 建立詳情，讓它加入商店的回收範圍。
 
-`OpenShop` 則改成以下版本，接收查看詳情的請求：
+`OpenProductInfo` 則改成以下版本，接收查看詳情的請求：
 
 ```csharp
-public async void OpenShop()
+public async void OpenProductInfo()
 {
-    using (var token = await uiManager.Create<UI_Shop>(sortingOrder: 0))
+    using (var token = await uiManager.Create<UI_ShopProduct>(sortingOrder: 0))
     {
         var shop = token.UI;
         shop.DetailRequested += OpenDetail;

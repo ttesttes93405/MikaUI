@@ -28,7 +28,7 @@ The first argument is the parent UI. The second is the Transform used to display
 Add a details button and a container to the shop prefab:
 
 ```text
-UI_Shop
+UI_ShopProduct
 └── Panel
     ├── ProductName
     ├── Price
@@ -37,13 +37,13 @@ UI_Shop
     └── DetailContainer ← Where the details appear
 ```
 
-Keep the existing display and close methods in `UI_Shop`, and add these members. The event uses `System.Action`:
+Keep the existing display and close methods in `UI_ShopProduct`, and add these members. The event uses `System.Action`:
 
 ```csharp
 [SerializeField] RectTransform detailContainer;
 
 public RectTransform DetailContainer => detailContainer;
-public event System.Action<UI_Shop> DetailRequested;
+public event System.Action<UI_ShopProduct> DetailRequested;
 
 public void RequestDetail()
 {
@@ -58,7 +58,7 @@ When the player clicks view details, `RequestDetail` passes the request to `Shop
 Add `OpenDetail` to `ShopDemo`, using the existing manager and product data:
 
 ```csharp
-async void OpenDetail(UI_Shop shop)
+async void OpenDetail(UI_ShopProduct shop)
 {
     var slot = new VisualSlot(shop, shop.DetailContainer);
     using (var token = await uiManager.Create<UI_ProductDetail>(slot))
@@ -70,12 +70,12 @@ async void OpenDetail(UI_Shop shop)
 
 This follows the same flow as opening the shop. The main difference is the slot: it makes the panel a child of the shop for release purposes.
 
-Update `OpenShop` to listen for details requests:
+Update `OpenProductInfo` to listen for details requests:
 
 ```csharp
-public async void OpenShop()
+public async void OpenProductInfo()
 {
-    using (var token = await uiManager.Create<UI_Shop>(sortingOrder: 0))
+    using (var token = await uiManager.Create<UI_ShopProduct>(sortingOrder: 0))
     {
         var shop = token.UI;
         shop.DetailRequested += OpenDetail;

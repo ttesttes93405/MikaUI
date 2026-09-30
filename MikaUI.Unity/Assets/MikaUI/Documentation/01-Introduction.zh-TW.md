@@ -13,7 +13,7 @@ MikaUI 讓你在建立 UI 時，同時描述它的存活範圍與回收關係。
 下面是一個開啟商店的範例，假設 manager 與 prefab 已經準備好：
 
 ```csharp
-using (var token = await uiManager.Create<UI_Shop>(sortingOrder: 0))
+using (var token = await uiManager.Create<UI_ShopProduct>(sortingOrder: 0))
 {
     await token.UI.ShowAsync(product);
 }

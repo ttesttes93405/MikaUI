@@ -9,7 +9,7 @@
 建立 UI 時，manager 會回傳一個 token。它讓你取得 UI，也代表這次使用的生命週期。
 
 ```csharp
-using (var token = await uiManager.Create<UI_Shop>(sortingOrder: 0))
+using (var token = await uiManager.Create<UI_ShopProduct>(sortingOrder: 0))
 {
     await token.UI.ShowAsync(product);
 }
@@ -39,7 +39,7 @@ using (var token = await uiManager.Create<UI_Shop>(sortingOrder: 0))
 
 ```csharp
 // 另一種持有方式的片段；本指南的商店仍沿用 using。
-shopToken = await uiManager.Create<UI_Shop>(sortingOrder: 0);
+shopToken = await uiManager.Create<UI_ShopProduct>(sortingOrder: 0);
 
 // 遊戲模式切換時：
 shopToken.Dispose();

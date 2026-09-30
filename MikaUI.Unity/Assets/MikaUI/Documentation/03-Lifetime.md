@@ -9,7 +9,7 @@ The previous example wrapped the shop interaction in `using`. This chapter expla
 When you create UI, the manager returns a token. It gives you access to the UI and represents the lifetime of this use.
 
 ```csharp
-using (var token = await uiManager.Create<UI_Shop>(sortingOrder: 0))
+using (var token = await uiManager.Create<UI_ShopProduct>(sortingOrder: 0))
 {
     await token.UI.ShowAsync(product);
 }
@@ -39,7 +39,7 @@ For example, if changing game modes should close the shop, you could hold its to
 
 ```csharp
 // An alternative ownership pattern; this guide's shop still uses using.
-shopToken = await uiManager.Create<UI_Shop>(sortingOrder: 0);
+shopToken = await uiManager.Create<UI_ShopProduct>(sortingOrder: 0);
 
 // When the game mode changes:
 shopToken.Dispose();
