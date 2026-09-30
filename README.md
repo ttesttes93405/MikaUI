@@ -17,3 +17,7 @@ with `?path=/MikaUI.Unity/Assets/MikaUI`.
 
 The Unity package identity is `com.owensun.mika-ui` (version `1.0.0`). Core targets
 .NET Standard 2.1 and ships as `Runtime/Plugins/MikaUI.Core.dll` in the package.
+
+[繁體中文文件](MikaUI.Unity/Assets/MikaUI/Documentation/01-Introduction.zh-TW.md)
+
+[English Documentation](MikaUI.Unity/Assets/MikaUI/Documentation/01-Introduction.md)
