@@ -87,7 +87,7 @@ Main responsibility:
 
 - Provides `UseEffect()`, which runs setup and can return a cleanup action that runs when the UI is recovered.
 
-Use this to reset per-use state, register temporary listeners, or perform other lifecycle-bound setup. `IUIReuseable` is obsolete; migrate implementations to `IUIEffectable`.
+Use this to reset per-use state, register temporary listeners, or perform other lifecycle-bound setup.
 
 ### `IUIInit : IVisualUI`
 
@@ -136,6 +136,7 @@ Main responsibilities:
 - Produces a visual UI element by type and name.
 - Produces a virtual UI element by type.
 - Defines how created elements are recovered.
+- Resolves visual descriptors asynchronously through `MikaTask<UIElement<TContainer>>`.
 - Is disposed by the manager after active elements are recovered.
 
 This type separates lifecycle orchestration from concrete instantiation and pooling.
@@ -223,9 +224,9 @@ This type allows the package to expose async-like APIs without exposing internal
 
 ## Unity Runtime Types
 
-### `UIManager`
+### `UnityUIManager`
 
-Unity-specific wrapper around `UIManager<MonoBehaviour, Transform>`.
+Unity-specific wrapper around `UIManager<MonoBehaviour, Transform, SlotRectConfigs>`.
 
 Main responsibilities:
 
@@ -262,6 +263,18 @@ instances under `poolRoot`, and destroys instances it cannot retain. Core's elem
 instance use lifecycle runs effect cleanup and preserves an instance's ElementID across reuse.
 The provider disposes its pool when the manager is disposed.
 
+### `IUIInstanceUseLifecycle<TUI>` and `DefaultUIInstanceUseLifecycle<TUI>`
+
+Core's visual instance use cycle. `BeginUse()` supplies a stable ElementID; `OnCreated()` runs `UseEffect()` after creation plugins; `Recover()` runs cleanup and returns reuse eligibility. Destroyed instances skip cleanup. Cleanup failures propagate and prevent reuse. The manager owns TokenID and tree recovery.
+
+### `IObjectPool<TSource, TUI>` and `BoundedEffectablePool<TSource, TUI>`
+
+Core's storage contract and bounded FIFO implementation. Capacity limits idle instances per source, with reference identity as the default source comparer. Only `IUIEffectable` instances are retained. The caller releases objects rejected by `TryReturn()`; disposal discards idle objects through the supplied callback.
+
+### `IUnityUIElementPool<TSource>`, `UnityDestroyOnReleasePool<TSource>`, and `UnityBoundedEffectablePool<TSource>`
+
+Unity's rent/release/dispose contract. The provider defaults to destroy-on-release. The bounded pool reparents rented instances to the container and reusable released instances to `poolRoot`, destroying the rest. It does not deactivate GameObjects or destroy the caller-provided root.
+
 ### `CanvasProvider`
 
 Manages canvas allocation and reuse by sorting order.
@@ -294,11 +307,17 @@ Injects the installed manager into a compatible field on the created object.
 
 Use this when UI objects need access to the manager without requiring each caller to wire that dependency manually.
 
+Injection fills the first compatible manager-typed instance field found by reflection, including public and non-public fields. Declare the full generic manager type or `UnityUIManager`; broad types such as `object` and `IDisposable` are ignored. Both visual and virtual UIs participate.
+
 ### `UIInitPlugin<TUI, TContainer, TSlotConfig>`
 
 Runs `Init()` for visual UIs that implement `IUIInit`.
 
 This keeps one-time initialization attached to the lifecycle instead of placing it in ad hoc caller code. Virtual UIs do not participate in this plugin.
+
+### `DestroyDetectPlugin`
+
+A default plugin that detects externally destroyed active UI GameObjects and recovers their token subtree and unused canvases on the next frame. Dispose the manager before destroying its root container; early root destruction reports an ownership violation. Normal recovery and uninstall remove destruction listeners.
 
 ### `UIRenamePlugin`
 

@@ -136,6 +136,7 @@ UI element 的 abstract factory 與 recovery boundary。
 - 依 type 與 name 產生 visual UI element
 - 依 type 產生 virtual UI element
 - 定義 element 被建立後要如何 recovery
+- 透過 `MikaTask<UIElement<TContainer>>` 非同步取得 visual descriptor
 - manager 回收活躍 UI 後會 dispose provider
 
 這個型別把 lifecycle orchestration 與具體 instantiation / pooling 策略分開。
@@ -223,9 +224,9 @@ core layer 使用的 custom awaitable。
 
 ## Unity Runtime Types
 
-### `UIManager`
+### `UnityUIManager`
 
-`UIManager<MonoBehaviour, Transform>` 的 Unity-specific wrapper。
+`UIManager<MonoBehaviour, Transform, SlotRectConfigs>` 的 Unity-specific wrapper。
 
 主要責任：
 
@@ -262,6 +263,18 @@ core layer 使用的 custom awaitable。
 重用時維持相同的 ElementID；TokenID 與樹狀回收仍由 UIManager 管理。
 manager dispose 時，provider 也會 dispose pool。
 
+### `IUIInstanceUseLifecycle<TUI>` 與 `DefaultUIInstanceUseLifecycle<TUI>`
+
+Core 的 visual instance 使用週期。`BeginUse()` 取得穩定的 ElementID；`OnCreated()` 在 create plugins 完成後執行 `UseEffect()`；`Recover()` 執行 cleanup 並回傳能否重用。已銷毀的實例跳過 cleanup，cleanup 失敗則向外拋出並禁止重用。TokenID 與 tree recovery 由 manager 管理。
+
+### `IObjectPool<TSource, TUI>` 與 `BoundedEffectablePool<TSource, TUI>`
+
+Core 的儲存契約與有界 FIFO 實作。容量只限制每個 source 的閒置實例，預設以 source reference 區分。只保留 `IUIEffectable`；`TryReturn()` 被拒絕的物件由 caller 釋放，dispose 時透過 discard callback 清除閒置物件。
+
+### `IUnityUIElementPool<TSource>`、`UnityDestroyOnReleasePool<TSource>` 與 `UnityBoundedEffectablePool<TSource>`
+
+Unity 的 rent/release/dispose 契約。provider 預設使用 destroy-on-release；有界 pool 在 rent 時重新掛到 container，在 release 時將可重用實例掛到 `poolRoot`，其餘銷毀。pool 不自行停用 GameObject，也不銷毀呼叫端提供的 root。
+
 ### `CanvasProvider`
 
 依 sorting order 管理 canvas allocation 與 reuse。
@@ -294,11 +307,17 @@ manager dispose 時，provider 也會 dispose pool。
 
 當 UI object 需要存取 manager，但你又不想讓每個 caller 都自己 wiring dependency 時，這個 plugin 很有用。
 
+只注入 reflection 找到的第一個相容 manager 型別欄位，包含 public 與 non-public instance fields。欄位可宣告為完整 generic manager 或 `UnityUIManager`；`object`、`IDisposable` 等廣泛型別不會被注入。visual 與 virtual UI 都適用。
+
 ### `UIInitPlugin<TUI, TContainer, TSlotConfig>`
 
 為實作 `IUIInit` 的 visual UI 執行 `Init()`。
 
 它讓一次性的 initialization 跟 lifecycle 綁在一起，而不是散落在 caller code 中。Virtual UI 不參與這個 plugin。
+
+### `DestroyDetectPlugin`
+
+預設插件之一，偵測活躍 UI 的 GameObject 被外部銷毀，並於下一 frame 回收 token subtree 與未使用的 canvas。銷毀 root container 前必須先 dispose manager；提前銷毀 root 會回報 ownership violation。正常回收或卸載時會解除 destroy listener。
 
 ### `UIRenamePlugin`
 

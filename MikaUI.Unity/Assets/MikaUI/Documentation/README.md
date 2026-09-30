@@ -4,7 +4,7 @@ MikaUI is a UI management system for Unity with explicit lifecycle control.
 
 Rather than letting each UI decide where it is attached, who controls it, or when it is cleaned up, MikaUI routes those decisions through a single managed runtime flow.
 
-Only the party currently holding the UI token, and therefore the ownership, should be able to operate on that UI.
+The token holder is responsible for operating the UI and ending its lifetime. This is an API usage convention; holding a UI reference does not enforce exclusive access.
 
 The main goal of this system is to make UI ownership and lifecycle explicit.
 
@@ -138,8 +138,14 @@ var uiElementProvider = new DefaultUIElementProvider(uiElementSource.GetSources(
 
 The capacity callback is evaluated once per source. `0` keeps no idle instances;
 negative capacities are invalid. Manager disposal disposes the provider and pool.
-The pool owns `poolRoot` and instance destruction; Core's instance use lifecycle owns
+The pool reparents idle instances under the caller-provided `poolRoot` and destroys discarded instances; Core's instance use lifecycle owns
 effect cleanup and ElementID. UIManager owns TokenID and tree recovery.
+
+`plugins: null` installs the default plugins. A non-null collection replaces the entire default set; an empty collection installs none. To keep the defaults and add plugins, use `MikaUI.Plugin.PluginCreator.Create(canvasProvider, extraPlugins)` with the same `CanvasProvider` passed to the manager.
+
+Capacity limits idle instances per source, not concurrently open UIs. Sources are distinguished by reference identity by default, and idle instances are rented in FIFO order. The pool does not deactivate GameObjects itself; use an inactive `poolRoot` and manage its lifetime at the call site.
+
+When the scene or owner ends, call `uiManager.Dispose()` before destroying the canvas root and pool root. The manager recovers active UIs, uninstalls plugins, and disposes the provider; the provider disposes the pool and discards idle instances.
 
 ### 3. Create the UI and keep the token
 
@@ -165,6 +171,13 @@ The `using` block is not just syntax sugar. It makes the UI lifetime explicit at
 When a UI should become part of another UI's recovery tree, create it through a slot that carries the parent relationship.
 
 The child UI is inserted at the position defined by the parent UI. When the parent UI recovers, the child UI is guaranteed to recover first.
+
+Assuming `UI_Child` is a visual UI and `FlowController` implements `IVirtualUI` with a public parameterless constructor:
+
+```csharp
+var child = await uiManager.Create<UI_Child>(new VisualSlot(parentToken.UI, childContainer));
+var flow = await uiManager.CreateVirtual<FlowController>(new VirtualSlot(parentToken.UI));
+```
 
 ### 5. Let recovery handle cleanup
 
@@ -196,7 +209,9 @@ Use `IUIEffectable` when a visual UI needs setup and cleanup for each use cycle.
 
 `UseEffect()` is where runtime state should be reset for the next use cycle; it may return a cleanup action that runs on recovery.
 
-Clear temporary text, selection state, temporary listeners, and other per-use state here. `IUIReuseable` is obsolete; migrate existing implementations to `IUIEffectable`.
+Clear temporary text, selection state, temporary listeners, and other per-use state here.
+
+The default instance lifecycle calls `UseEffect()` after creation plugins, including injection and `Init()`. Setup and cleanup also run without pooling. A reused instance keeps its ElementID, while each creation receives a new TokenID. A cleanup failure causes the instance to be destroyed. Instances already destroyed by Unity skip effect cleanup and cannot return to the pool.
 
 ### Recovery semantics
 
@@ -229,6 +244,7 @@ The default Unity package already uses plugins for basic behaviors such as:
 - Running `Init()` for visual UIs that implement `IUIInit`
 - Renaming created and recovering UIs
 - Fitting RectTransform values to the target container
+- Detecting unexpected GameObject destruction and recovering the token subtree and unused canvases on the next frame
 
 Plugins make it easier to attach common behavior in a flexible way and enable or remove that behavior when needed.
 
@@ -283,5 +299,4 @@ It gives each UI a clear creation path, an explicit lifetime handle, ownership c
 
 Once that idea is clear in the documentation, the rest of the API becomes much easier to understand.
 
-For detailed type responsibilities, see `ClassReference.md`.
-For documentation structure and additional document scope, see `DocumentationOverview.md`.
+For detailed type responsibilities, see [Class Reference](ClassReference.md).

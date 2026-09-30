@@ -4,10 +4,9 @@ MikaUI 是一套以 lifecycle 為核心的 Unity UI management system。
 
 它不讓每個 UI 各自決定自己掛在哪裡、由誰持有、何時被清理，而是把這些決策集中到一條受管理的 runtime flow 裡。
 
-只有目前持有 UI token、擁有這段 ownership 的那一方，才可以對 UI 進行操作。
+目前持有 UI token 的一方，負責操作 UI 與結束它的 lifetime。這是 API 使用約定；持有 UI reference 本身不會強制限制其他程式的存取。
 
 這套 system 的核心目的，是讓 UI 的 ownership 及 lifecycle 變得更加明確。
-
 
 ## 核心理念
 
@@ -138,9 +137,15 @@ var uiElementProvider = new DefaultUIElementProvider(uiElementSource.GetSources(
 ```
 
 容量函式對每個 source 計算一次。`0` 表示不保留閒置實例，負數是無效設定。
-pool 負責 `poolRoot` 與實例銷毀，Core 的 instance use lifecycle 負責效果清理與 ElementID；
+pool 負責將閒置實例移到呼叫端提供的 `poolRoot` 下，以及銷毀無法保留的實例，Core 的 instance use lifecycle 負責效果清理與 ElementID；
 TokenID 與樹狀回收仍由 UIManager 管理。
 manager dispose 時會依序 dispose provider 與 pool。
+
+`plugins: null` 會安裝預設插件；傳入非 null 集合會取代整套預設插件（空集合表示不安裝插件）。要保留預設行為並加入自己的插件，使用 `MikaUI.Plugin.PluginCreator.Create(canvasProvider, extraPlugins)`，並傳入同一個 `CanvasProvider`。
+
+容量限制只計算每個 source 的閒置實例，不限制同時開啟的 UI 數量。source 預設以物件 reference 區分，閒置實例依 FIFO 重用。pool 不會自行停用 GameObject；建議提供已停用的 `poolRoot`，並由呼叫端管理它的 lifetime。
+
+場景或 owner 結束時，先呼叫 `uiManager.Dispose()`，再銷毀 canvas root 與 pool root。manager 會回收所有活躍 UI、卸載插件並 dispose provider；provider 會 dispose pool，清除閒置實例。
 
 ### 3. 建立 UI，並保留 token
 
@@ -166,6 +171,13 @@ using (var token = await uiManager.Create<UI_HelloWorld>(sortingOrder: 0))
 當某個 UI 應該被納入另一個 UI 的 recovery tree 時，要透過帶有 parent 關係的 slot 建立。
 
 child UI 會被插入 parent UI 的指定位置，並且在 parent UI recovery 時，也一定會先 recovery 自己。
+
+以下假設 `UI_Child` 是 visual UI、`FlowController` 實作 `IVirtualUI` 並具有 public 無參數建構子：
+
+```csharp
+var child = await uiManager.Create<UI_Child>(new VisualSlot(parentToken.UI, childContainer));
+var flow = await uiManager.CreateVirtual<FlowController>(new VirtualSlot(parentToken.UI));
+```
 
 ### 5. 讓 recovery 接管 cleanup
 
@@ -199,6 +211,8 @@ child UI 會被插入 parent UI 的指定位置，並且在 parent UI recovery �
 
 例如重新打開「商城視窗」時，把搜尋條件、暫存選取、提示文字或暫時性 listener 清乾淨，就屬於這一層的責任。
 
+預設 instance lifecycle 會在 create plugins（包括 injection 與 `Init()`）完成後呼叫 `UseEffect()`。即使沒有 pooling，這個 setup/cleanup 仍會執行。同一實例重用時維持相同的 ElementID，每次 create 都取得新的 TokenID。cleanup 失敗時實例會被銷毀；已被 Unity destroy 的實例不執行 effect cleanup，也不會回到 pool。
+
 ### Recovery semantics
 
 對已設定 pool 的 `IUIEffectable` UI 來說，recovery 的意思是：
@@ -228,6 +242,7 @@ Unity 預設 plugin 已經處理了一些基礎行為，例如：
 - 為實作 `IUIInit` 的 visual UI 執行 `Init()`
 - 替建立中的 UI 與 recovering UI 重新命名
 - 套用 RectTransform fitting
+- 偵測意外的 GameObject destruction，並於下一 frame 回收 token subtree 與閒置 canvas
 
 使用 Plugin 可以更彈性的綁定共通的功能，也可以選擇性的使用與移除功能。
 
@@ -282,5 +297,4 @@ MikaUI 最適合被理解成一套給 Unity UI 使用的 ownership 與 lifecycle
 
 如果這個核心觀念在文件中被說清楚，後續 API 反而會比較容易理解。
 
-更細的型別說明請參考 `ClassReference.zh-TW.md`。
-文件結構與延伸文件分工請參考 `DocumentationOverview.zh-TW.md`。
+更細的型別說明請參考 [Class Reference](ClassReference.zh-TW.md)。
