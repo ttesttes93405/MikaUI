@@ -231,20 +231,10 @@ namespace MikaUI
             {
                 if (nodeAttached)
                 {
-                    RollbackableRun(
-                        () => node.BeforeRecoverySelf(),
-                        rollbackException => ReportRollbackFailure(RecoveryPhase.BeforeRecovery, rollbackException)
-                    );
-
-                    RollbackableRun(
-                        () => nodeManager.DetachNode(node, ui),
-                        rollbackException => ReportRollbackFailure(RecoveryPhase.AfterRecovery, rollbackException)
-                    );
-
-                    RollbackableRun(
-                        () => combinedPlugin.OnUIRecovered(token.Name, token.TokenID),
-                        rollbackException => ReportRollbackFailure(RecoveryPhase.AfterRecovery, rollbackException)
-                    );
+                    // Creation hooks may already have attached descendants. Recover
+                    // them before removing the parent and its traversal entry point.
+                    EndTree(node, TreeEndMode.NormalRecovery);
+                    return;
                 }
 
                 RollbackableRun(
@@ -424,8 +414,14 @@ namespace MikaUI
                 },
                 AfterRecoverySelf = () =>
                 {
-                    nodeManager.DetachNode(node, ui);
-                    virtualUIElement.Recovery(ui);
+                    try
+                    {
+                        nodeManager.DetachNode(node, ui);
+                    }
+                    finally
+                    {
+                        virtualUIElement.Recovery(ui);
+                    }
                 },
                 UnexpectedRecoverySelf = () =>
                 {
@@ -462,20 +458,13 @@ namespace MikaUI
 
             // Keep virtual creation atomic for custom providers and plugins too.
             // The caller never receives the token when an initialization hook fails,
-            // so this method must remove the node and release the virtual element.
+            // so this method must release the entire subtree created by its hooks.
             void RollbackFailedVirtualCreation()
             {
                 if (nodeAttached)
                 {
-                    RollbackableRun(
-                        () => node.BeforeRecoverySelf(),
-                        rollbackException => ReportRecoveryError(new RecoveryErrorInfo(token.TokenID, token.Name, RecoveryPhase.BeforeRecovery, rollbackException))
-                    );
-
-                    RollbackableRun(
-                        () => nodeManager.DetachNode(node, ui),
-                        rollbackException => ReportRecoveryError(new RecoveryErrorInfo(token.TokenID, token.Name, RecoveryPhase.AfterRecovery, rollbackException))
-                    );
+                    EndTree(node, TreeEndMode.NormalRecovery);
+                    return;
                 }
 
                 RollbackableRun(

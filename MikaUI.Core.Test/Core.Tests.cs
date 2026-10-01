@@ -538,6 +538,90 @@ namespace Tests.Core
             }
         }
 
+        [TestCase(false, false, false)]
+        [TestCase(false, true, false)]
+        [TestCase(true, false, false)]
+        [TestCase(true, true, false)]
+        [TestCase(false, false, true)]
+        [TestCase(false, true, true)]
+        [TestCase(true, false, true)]
+        [TestCase(true, true, true)]
+        public void FailedCreation_RecoversEntireSubtree(bool virtualParent, bool failInInitialization, bool failChildRecovery)
+        {
+            var provider = new FakeUIElementProvider();
+            var creationPlugin = new CallbackCreatePlugin();
+            var recoveryPlugin = new ThrowingRecoveryPlugin();
+            using var manager = new TestableUIManager(provider, new FakeCanvasProvider(),
+                new IPlugin<DummyUI, DummyContainer, object>[] { creationPlugin, recoveryPlugin }, DummyLogger.Create());
+            var expectedException = new InvalidOperationException("Parent creation failed after creating children.");
+            var tokens = new List<UIControlToken>();
+            var disposalOrder = new List<Guid>();
+            var recoveryErrors = new List<RecoveryErrorInfo>();
+            manager.OnRecoveryError += recoveryErrors.Add;
+            manager.OnRecoveryError += _ => throw new InvalidOperationException("Observer failure.");
+
+            creationPlugin.OnRootCreated = (parentToken, parentUI) =>
+            {
+                if (failInInitialization)
+                {
+                    if (virtualParent)
+                        provider.OnVirtualCreated = CreateDescendantsAndFail;
+                    else
+                        provider.OnVisualCreated = CreateDescendantsAndFail;
+                }
+                else
+                {
+                    CreateDescendantsAndFail();
+                }
+
+                void CreateDescendantsAndFail()
+                {
+                    // Only the parent initialization should create the subtree.
+                    provider.OnVisualCreated = null;
+                    provider.OnVirtualCreated = null;
+                    var child = manager.CreateVirtual<DummyVirtualUI>(new DummySlot(new DummyContainer(), parentUI)).WaitResult();
+                    var grandchild = manager.Create<DummyUI>(new DummySlot(new DummyContainer(), child.UI)).WaitResult();
+                    var sibling = manager.Create<DummyUI>(new DummySlot(new DummyContainer(), parentUI)).WaitResult();
+                    tokens.AddRange(new UIControlToken[] { grandchild, child, sibling, parentToken });
+                    foreach (var token in tokens)
+                        token.OnDispose += () => disposalOrder.Add(token.TokenID);
+
+                    if (failChildRecovery)
+                        recoveryPlugin.ThrowForTokenID = grandchild.TokenID;
+
+                    throw expectedException;
+                }
+            };
+
+            var exception = Assert.Throws<AggregateException>(() =>
+            {
+                if (virtualParent)
+                    manager.CreateVirtual<DummyVirtualUI>().WaitResult();
+                else
+                    manager.Create<DummyUI>(DummySlot.Root()).WaitResult();
+            });
+
+            Assert.That(exception.InnerException, Is.SameAs(expectedException));
+            Assert.That(tokens.Count, Is.EqualTo(4));
+            Assert.That(tokens.All(token => token.IsDisposed), Is.True);
+            CollectionAssert.AreEqual(tokens.Select(token => token.TokenID), disposalOrder);
+            Assert.That(provider.RecoveryCount, Is.EqualTo(virtualParent ? 2 : 3));
+            Assert.That(provider.VirtualRecoveryCount, Is.EqualTo(virtualParent ? 2 : 1));
+            Assert.That(recoveryErrors.Count, Is.EqualTo(failChildRecovery ? 1 : 0));
+            if (failChildRecovery)
+            {
+                Assert.That(recoveryErrors[0].TokenID, Is.EqualTo(tokens[0].TokenID));
+                Assert.That(recoveryErrors[0].Phase, Is.EqualTo(RecoveryPhase.BeforeRecovery));
+            }
+
+            manager.Dispose();
+            foreach (var token in tokens)
+                token.Dispose();
+            Assert.That(provider.RecoveryCount, Is.EqualTo(virtualParent ? 2 : 3));
+            Assert.That(provider.VirtualRecoveryCount, Is.EqualTo(virtualParent ? 2 : 1));
+            Assert.That(disposalOrder.Count, Is.EqualTo(4));
+        }
+
         [Test]
         public void Create_WhenRecoveryErrorObserverThrows_StillCompletesRollback()
         {

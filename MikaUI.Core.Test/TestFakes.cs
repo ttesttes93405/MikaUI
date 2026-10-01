@@ -259,7 +259,7 @@ namespace Tests.Core
         public static DummySlot Root() => new DummySlot(new DummyContainer(), null);
         public static DummySlot Child(IVisualUI parentUI) => new DummySlot(new DummyContainer(), parentUI);
 
-        public DummySlot(DummyContainer container, IVisualUI parentUI)
+        public DummySlot(DummyContainer container, IBaseUI parentUI)
         {
             Container = container;
             ParentUI = parentUI;
@@ -322,6 +322,30 @@ namespace Tests.Core
         public void OnUIRecovered(string name, Guid tokenID)
         {
             RecoveredTokenIds.Add(tokenID);
+        }
+    }
+
+    internal sealed class CallbackCreatePlugin :
+        IPlugin<DummyUI, DummyContainer, object>,
+        IPluginUICreatedHandler<DummyUI, DummyContainer, object>,
+        IPluginVirtualUICreatedHandler
+    {
+        public Action<UIControlToken, IBaseUI> OnRootCreated { get; set; }
+        public int SortingOrder => 0;
+
+        public void Install(UIManager<DummyUI, DummyContainer, object> manager) { }
+        public void Uninstall(UIManager<DummyUI, DummyContainer, object> manager) { }
+
+        public void OnUICreated<T>(string name, UIControlToken<T, DummyContainer> token, DummyContainer container, IBaseUI parentUI, object slotRectConfigs, DummyUI template) where T : DummyUI, IVisualUI
+        {
+            if (parentUI == null)
+                OnRootCreated?.Invoke(token, token.UI);
+        }
+
+        public void OnVirtualUICreated<T>(UIControlToken<T> token, IBaseUI parentUI) where T : IVirtualUI, new()
+        {
+            if (parentUI == null)
+                OnRootCreated?.Invoke(token, token.UI);
         }
     }
 
