@@ -12,6 +12,8 @@ namespace MikaUI
             public Action Cleaner;
             public bool InUse;
             public bool Activated;
+            public bool Activating;
+            public bool CleanupAfterSetup;
         }
 
         // Idle objects discarded by a pool must not be kept alive just to remember an ID.
@@ -36,10 +38,30 @@ namespace MikaUI
         {
             if (ui == null)
                 throw new ArgumentNullException(nameof(ui));
-            if (!states.TryGetValue(ui, out var state) || !state.InUse || state.Activated)
+            if (!states.TryGetValue(ui, out var state) || !state.InUse || state.Activated || state.Activating)
                 throw new InvalidOperationException("The UI instance has not begun a new use.");
 
-            state.Cleaner = (ui as IUIEffectable)?.UseEffect();
+            Action cleaner;
+            state.Activating = true;
+            try
+            {
+                cleaner = (ui as IUIEffectable)?.UseEffect();
+            }
+            finally
+            {
+                state.Activating = false;
+            }
+
+            // Setup can re-enter Recover before returning its cleanup. The old
+            // state is then detached, so never publish the cleanup into a new use.
+            if (!state.InUse)
+            {
+                if (state.CleanupAfterSetup)
+                    cleaner?.Invoke();
+                return;
+            }
+
+            state.Cleaner = cleaner;
             state.Activated = true;
         }
 
@@ -51,6 +73,7 @@ namespace MikaUI
                 return false;
 
             state.InUse = false;
+            state.CleanupAfterSetup = state.Activating && isAlive;
             var activated = state.Activated;
             var cleaner = state.Cleaner;
             state.Activated = false;

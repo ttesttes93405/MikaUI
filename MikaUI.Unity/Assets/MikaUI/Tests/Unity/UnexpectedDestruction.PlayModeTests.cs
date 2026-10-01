@@ -20,6 +20,27 @@ namespace Tests.Unity
         UnityUIManager manager;
 
         [UnityTest]
+        public IEnumerator DisposingManagerDuringEffectSetup_RunsReturnedCleanupOnce()
+        {
+            CreateManager();
+            ReusableTestUI.OnSetup = () => manager.Dispose();
+
+            LogAssert.Expect(LogType.Error, new Regex("ObjectDisposedException"));
+            var failedCreate = manager.Create<ReusableTestUI>(sortingOrder: 0);
+
+            Assert.That(failedCreate.IsCompleted, Is.True);
+            Assert.That(failedCreate.IsFaulted, Is.True);
+            Assert.That(failedCreate.Exception.InnerException, Is.TypeOf<ObjectDisposedException>());
+            Assert.That(manager.IsDisposed, Is.True);
+            Assert.That(ReusableTestUI.EffectCount, Is.EqualTo(1));
+            Assert.That(ReusableTestUI.CleanupCount, Is.EqualTo(1));
+
+            manager.Dispose();
+            yield return null;
+            Assert.That(ReusableTestUI.CleanupCount, Is.EqualTo(1));
+        }
+
+        [UnityTest]
         public IEnumerator DestroyingManagedParent_RecoversTokensAndDestroyedPoolEntries()
         {
             CreateManager();
@@ -261,6 +282,7 @@ namespace Tests.Unity
         [UnityTearDown]
         public IEnumerator TearDown()
         {
+            ReusableTestUI.OnSetup = null;
             manager?.Dispose();
             manager = null;
 
@@ -458,16 +480,19 @@ namespace Tests.Unity
     {
         public static int CleanupCount { get; private set; }
         public static int EffectCount { get; private set; }
+        public static Action OnSetup;
 
         public static void ResetCounters()
         {
             CleanupCount = 0;
             EffectCount = 0;
+            OnSetup = null;
         }
 
         public Action UseEffect()
         {
             EffectCount++;
+            OnSetup?.Invoke();
             return () => CleanupCount++;
         }
     }
