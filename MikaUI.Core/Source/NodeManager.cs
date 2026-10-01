@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using System.Text;
 
 
@@ -56,9 +57,15 @@ namespace MikaUI
 
     internal class NodeManager : IDisposable
     {
+        sealed class UIIdentityComparer : IEqualityComparer<IBaseUI>
+        {
+            public bool Equals(IBaseUI x, IBaseUI y) => ReferenceEquals(x, y);
+            public int GetHashCode(IBaseUI ui) => RuntimeHelpers.GetHashCode(ui);
+        }
+
         readonly HashSet<Guid> rootNodeIds = new();
         readonly Dictionary<Guid, Node> treeNodes = new();
-        readonly Dictionary<IBaseUI, Node> uiToNode = new();
+        readonly Dictionary<IBaseUI, Node> uiToNode = new(new UIIdentityComparer());
         readonly Logger logger;
 
         public NodeManager(Logger logger)
