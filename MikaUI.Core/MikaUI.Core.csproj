@@ -6,6 +6,8 @@
     <Version>1.0.0</Version>
     <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
+    <!-- Keep the packaged DLL stable when only the repository commit changes. -->
+    <EnableSourceLink>false</EnableSourceLink>
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="Source/**/*.cs" />
