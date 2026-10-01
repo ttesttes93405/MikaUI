@@ -18,7 +18,7 @@ your Unity project's `Packages/manifest.json`:
 
 ```json
 {
-  "com.owensun.mika-ui": "https://github.com/ttesttes93405/MikaUI?path=/MikaUI.Unity/Assets/MikaUI#1.0.0"
+  "com.owensun.mika-ui": "https://github.com/ttesttes93405/MikaUI.git?path=/MikaUI.Unity/Assets/MikaUI#1.0.0"
 }
 ```
 
