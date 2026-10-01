@@ -35,20 +35,24 @@ namespace MikaUI
 
         static void InjectUIManager(object target, UIManager<TUI, TContainer, TSlotConfig> uiManager)
         {
-            var fields = target.GetType().GetFields(BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Instance);
-
-            foreach (var field in fields)
+            // Search the most-derived type first, including private fields declared
+            // on each base type. GetFields alone omits inherited private fields.
+            for (var type = target.GetType(); type != null; type = type.BaseType)
             {
-                // Broad fields such as IDisposable and object may accept a manager,
-                // but they are not declarations asking for manager injection.
-                if (typeof(UIManager<TUI, TContainer, TSlotConfig>).IsAssignableFrom(field.FieldType) == false
-                    || field.FieldType.IsAssignableFrom(uiManager.GetType()) == false)
+                var fields = type.GetFields(BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly);
+                foreach (var field in fields)
                 {
-                    continue;
-                }
+                    // Broad fields such as IDisposable and object may accept a manager,
+                    // but they are not declarations asking for manager injection.
+                    if (typeof(UIManager<TUI, TContainer, TSlotConfig>).IsAssignableFrom(field.FieldType) == false
+                        || field.FieldType.IsAssignableFrom(uiManager.GetType()) == false)
+                    {
+                        continue;
+                    }
 
-                field.SetValue(target, uiManager);
-                break;
+                    field.SetValue(target, uiManager);
+                    return;
+                }
             }
         }
 
