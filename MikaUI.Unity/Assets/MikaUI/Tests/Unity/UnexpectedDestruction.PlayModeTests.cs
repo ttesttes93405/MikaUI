@@ -52,6 +52,31 @@ namespace Tests.Unity
         }
 
         [UnityTest]
+        public IEnumerator ThrowingDisposeObserver_StillUnregistersAndReusesCanvas()
+        {
+            // Plugins subscribe before UnityUIManager installs its Canvas unregister callback.
+            CreateManager(new ThrowOnDisposePlugin());
+            var errors = new System.Collections.Generic.List<RecoveryErrorInfo>();
+            manager.OnRecoveryError += errors.Add;
+            var token = CreateRoot();
+            var canvas = token.UI.transform.parent.GetComponent<Canvas>();
+
+            Assert.DoesNotThrow(() => token.Dispose());
+            token.Dispose();
+
+            Assert.That(token.IsDisposed, Is.True);
+            Assert.That(errors.Count, Is.EqualTo(1));
+            Assert.That(errors[0].Exception, Is.TypeOf<AggregateException>());
+            Assert.That(canvas.enabled, Is.False);
+            Assert.That(canvas.gameObject.activeSelf, Is.False);
+
+            var replacement = WaitFor(manager.Create<ReusableTestUI>(sortingOrder: 1));
+            Assert.That(replacement.UI.transform.parent.GetComponent<Canvas>(), Is.SameAs(canvas));
+            replacement.Dispose();
+            yield return null;
+        }
+
+        [UnityTest]
         public IEnumerator DisposingTokenInCreatedPlugin_RecoversCanvasWithoutRunningEffect()
         {
             var disposingPlugin = new DisposeFirstCreatedTokenPlugin();
@@ -333,6 +358,21 @@ namespace Tests.Unity
             {
                 UIName = uiName;
                 UITemplate = uiTemplate;
+            }
+        }
+
+        sealed class ThrowOnDisposePlugin :
+            IPlugin<MonoBehaviour, Transform, SlotRectConfigs>,
+            IPluginUICreatedHandler<MonoBehaviour, Transform, SlotRectConfigs>
+        {
+            public int SortingOrder => 0;
+
+            public void Install(UIManager<MonoBehaviour, Transform, SlotRectConfigs> manager) { }
+            public void Uninstall(UIManager<MonoBehaviour, Transform, SlotRectConfigs> manager) { }
+
+            public void OnUICreated<T>(string name, UIControlToken<T, Transform> token, Transform container, IBaseUI parentUI, SlotRectConfigs slotRectConfigs, MonoBehaviour template) where T : MonoBehaviour, IVisualUI
+            {
+                token.OnDispose += () => throw new InvalidOperationException("Dispose observer failed");
             }
         }
 

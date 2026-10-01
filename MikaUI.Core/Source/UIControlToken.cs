@@ -1,5 +1,6 @@
 
 using System;
+using System.Collections.Generic;
 
 namespace MikaUI
 {
@@ -20,6 +21,10 @@ namespace MikaUI
         public string Name => name;
         public Action Recovery => GetValue(recovery);
 
+        /// <summary>
+        /// Runs once after disposal. All callbacks are attempted in subscription order;
+        /// callback failures are aggregated after notification completes.
+        /// </summary>
         public event Action OnDispose;
 
         public bool IsDisposed { get; private set; }
@@ -52,7 +57,26 @@ namespace MikaUI
                 return;
 
             IsDisposed = true;
-            OnDispose?.Invoke();
+            var handlers = OnDispose;
+            if (handlers == null)
+                return;
+
+            List<Exception> errors = null;
+            foreach (Action callback in handlers.GetInvocationList())
+            {
+                try
+                {
+                    callback();
+                }
+                catch (Exception error)
+                {
+                    (errors ??= new List<Exception>()).Add(error);
+                }
+            }
+
+            // Preserve error reporting without allowing observers to skip cleanup.
+            if (errors != null)
+                throw new AggregateException("OnDispose callbacks failed.", errors);
         }
 
         protected void ThrowIfDisposed()
