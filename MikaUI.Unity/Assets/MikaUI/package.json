@@ -1,6 +1,6 @@
 {
   "name": "com.owensun.mika-ui",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "displayName": "Mika UI",
   "description": "A UI system for Unity projects",
   "unity": "2021.3",

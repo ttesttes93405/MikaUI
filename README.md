@@ -8,7 +8,7 @@ In Unity, open **Window > Package Manager**, click **+**, and select
 **Add package from git URL**. Paste the following URL:
 
 ```text
-https://github.com/ttesttes93405/MikaUI?path=/MikaUI.Unity/Assets/MikaUI#1.0.0
+https://github.com/ttesttes93405/MikaUI?path=/MikaUI.Unity/Assets/MikaUI#1.0.1
 ```
 
 ### Install with `manifest.json`
@@ -18,7 +18,7 @@ your Unity project's `Packages/manifest.json`:
 
 ```json
 {
-  "com.owensun.mika-ui": "https://github.com/ttesttes93405/MikaUI.git?path=/MikaUI.Unity/Assets/MikaUI#1.0.0"
+  "com.owensun.mika-ui": "https://github.com/ttesttes93405/MikaUI.git?path=/MikaUI.Unity/Assets/MikaUI#1.0.1"
 }
 ```
 
