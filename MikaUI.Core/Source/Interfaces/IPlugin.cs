@@ -44,6 +44,6 @@ namespace MikaUI.Plugin
 
     public interface IPluginVirtualUICreatedHandler
     {
-        public void OnVirtualUICreated<T>(UIControlToken<T> token, IBaseUI parentUI) where T : IVirtualUI, new();
+        public void OnVirtualUICreated<T>(UIControlToken<T> token, IBaseUI parentUI) where T : class, IVirtualUI, new();
     }
 }

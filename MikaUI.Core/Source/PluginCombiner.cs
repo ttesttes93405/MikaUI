@@ -132,7 +132,7 @@ namespace MikaUI
         }
 
 
-        public void OnVirtualUICreated<T>(UIControlToken<T> token, IBaseUI parentUI) where T : IVirtualUI, new()
+        public void OnVirtualUICreated<T>(UIControlToken<T> token, IBaseUI parentUI) where T : class, IVirtualUI, new()
         {
             foreach (var plugin in plugins)
             {

@@ -6,6 +6,7 @@ namespace MikaUI
 {
     public interface IBaseUI { }
 
+    /// <summary>Implemented by reference types with a public parameterless constructor.</summary>
     public interface IVirtualUI : IBaseUI { }
 
     public interface IVisualUI : IBaseUI { }

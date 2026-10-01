@@ -87,7 +87,7 @@ namespace MikaUI
             }
         }
 
-        public VirtualUIElement GetVirtualUIElement<T>() where T : IVirtualUI, new()
+        public VirtualUIElement GetVirtualUIElement<T>() where T : class, IVirtualUI, new()
         {
             ThrowIfDisposed();
             return new VirtualUIElement

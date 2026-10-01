@@ -106,7 +106,7 @@ namespace Tests.Core
             });
         }
 
-        public VirtualUIElement GetVirtualUIElement<T>() where T : IVirtualUI, new()
+        public VirtualUIElement GetVirtualUIElement<T>() where T : class, IVirtualUI, new()
         {
             if (GetVirtualUIElementException != null)
             {
@@ -164,7 +164,7 @@ namespace Tests.Core
             };
         }
 
-        public VirtualUIElement GetVirtualUIElement<T>() where T : IVirtualUI, new()
+        public VirtualUIElement GetVirtualUIElement<T>() where T : class, IVirtualUI, new()
         {
             throw new NotSupportedException();
         }
@@ -213,7 +213,7 @@ namespace Tests.Core
             Events.Add(EventType.Recovered);
         }
 
-        public void OnVirtualUICreated<T>(UIControlToken<T> token, IBaseUI parentUI) where T : IVirtualUI, new()
+        public void OnVirtualUICreated<T>(UIControlToken<T> token, IBaseUI parentUI) where T : class, IVirtualUI, new()
         {
             Events.Add(EventType.VirtualCreated);
         }
@@ -277,7 +277,7 @@ namespace Tests.Core
             return MikaTask<UIElement<DummyContainer>>.FromResult(null);
         }
 
-        public VirtualUIElement GetVirtualUIElement<T>() where T : IVirtualUI, new()
+        public VirtualUIElement GetVirtualUIElement<T>() where T : class, IVirtualUI, new()
         {
             throw new NotSupportedException("Virtual UI elements are not supported in NullUIElementProvider.");
         }
@@ -342,7 +342,7 @@ namespace Tests.Core
                 OnRootCreated?.Invoke(token, token.UI);
         }
 
-        public void OnVirtualUICreated<T>(UIControlToken<T> token, IBaseUI parentUI) where T : IVirtualUI, new()
+        public void OnVirtualUICreated<T>(UIControlToken<T> token, IBaseUI parentUI) where T : class, IVirtualUI, new()
         {
             if (parentUI == null)
                 OnRootCreated?.Invoke(token, token.UI);
@@ -390,7 +390,7 @@ namespace Tests.Core
 
         public void Uninstall(UIManager<DummyUI, DummyContainer, object> manager) { }
 
-        public void OnVirtualUICreated<T>(UIControlToken<T> token, IBaseUI parentUI) where T : IVirtualUI, new()
+        public void OnVirtualUICreated<T>(UIControlToken<T> token, IBaseUI parentUI) where T : class, IVirtualUI, new()
         {
             throw new InvalidOperationException("Simulated virtual plugin failure.");
         }
@@ -437,7 +437,7 @@ namespace Tests.Core
             token.Dispose();
         }
 
-        public void OnVirtualUICreated<T>(UIControlToken<T> token, IBaseUI parentUI) where T : IVirtualUI, new()
+        public void OnVirtualUICreated<T>(UIControlToken<T> token, IBaseUI parentUI) where T : class, IVirtualUI, new()
         {
             DisposedToken = token;
             token.Dispose();

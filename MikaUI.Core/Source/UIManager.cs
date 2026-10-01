@@ -358,12 +358,12 @@ namespace MikaUI
             }
         }
 
-        public MikaTask<UIControlToken<T>> CreateVirtual<T>(IVirtualSlot slot = null) where T : IVirtualUI, new()
+        public MikaTask<UIControlToken<T>> CreateVirtual<T>(IVirtualSlot slot = null) where T : class, IVirtualUI, new()
         {
             return InternalCreateVirtual<T>(slot?.ParentUI);
         }
 
-        async MikaTask<UIControlToken<T>> InternalCreateVirtual<T>(IBaseUI parentUI) where T : IVirtualUI, new()
+        async MikaTask<UIControlToken<T>> InternalCreateVirtual<T>(IBaseUI parentUI) where T : class, IVirtualUI, new()
         {
             ThrowIfDisposed();
 

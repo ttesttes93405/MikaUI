@@ -6,7 +6,7 @@ namespace MikaUI
     {
         public MikaTask<UIElement<TContainer>> GetUIElement<T>(string name) where T : TUI, IVisualUI;
 
-        public VirtualUIElement GetVirtualUIElement<T>() where T : IVirtualUI, new();
+        public VirtualUIElement GetVirtualUIElement<T>() where T : class, IVirtualUI, new();
 
     }
 }
