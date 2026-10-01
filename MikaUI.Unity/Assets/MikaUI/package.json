@@ -21,7 +21,7 @@
     {
       "displayName": "Quick Start Example",
       "description": "A quick start example scene, ",
-      "path": "Samples~/00_QuickStart"
+      "path": "Samples/00_QuickStart"
     }
   ]
 }
