@@ -4,7 +4,10 @@ using System;
 namespace MikaUI
 {
 
-    public record UIControlToken : IDisposable
+    /// <summary>
+    /// A UI lifetime handle with reference identity. All references share its disposal state.
+    /// </summary>
+    public class UIControlToken : IDisposable
     {
 
         readonly Guid tokenID;
@@ -66,7 +69,7 @@ namespace MikaUI
 
     }
 
-    public record UIControlToken<TUI> : UIControlToken where TUI : IBaseUI
+    public class UIControlToken<TUI> : UIControlToken where TUI : IBaseUI
     {
         readonly TUI ui;
         public TUI UI => GetValue(ui);
@@ -83,7 +86,7 @@ namespace MikaUI
         }
     }
 
-    public sealed record UIControlToken<TUI, TContainer> : UIControlToken<TUI> where TUI : IVisualUI
+    public sealed class UIControlToken<TUI, TContainer> : UIControlToken<TUI> where TUI : IVisualUI
     {
         internal UIControlToken(Guid tokenID, Guid elementID, string name, TUI ui, Action recovery) : base(tokenID, elementID, name, ui, recovery)
         {

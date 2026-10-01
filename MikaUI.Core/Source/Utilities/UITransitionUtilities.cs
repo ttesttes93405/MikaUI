@@ -36,7 +36,7 @@ namespace MikaUI.Core
             where TFrom : IVisualUI
             where TTo : IVisualUI, IUITransitionable
         {
-            if (to == from)
+            if (ReferenceEquals(to, from))
             {
                 return;
             }
